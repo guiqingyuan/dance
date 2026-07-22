@@ -31,14 +31,23 @@ jobs:
       - name: Verify MuJoCo render (non-fatal)
         run: |
           python -c "
-          import mujoco
+          import os, mujoco
           m = mujoco.MjModel.from_xml_string('<mujoco><worldbody/></mujoco>')
-          try:
-              r = mujoco.Renderer(m, 64, 64)
-              r.update_scene(mujoco.MjData(m))
-              print('Render OK:', r.render().shape)
-          except Exception as e:
-              print('Render not available (placeholder will be used):', e)
+          d = mujoco.MjData(m)
+          for backend in ['egl', 'osmesa', None]:
+              try:
+                  if backend:
+                      os.environ['MUJOCO_GL'] = backend
+                  else:
+                      os.environ.pop('MUJOCO_GL', None)
+                  r = mujoco.Renderer(m, 64, 64)
+                  r.update_scene(d)
+                  print('Render OK backend=%s shape=%s' % (backend, r.render().shape))
+                  break
+              except Exception as e:
+                  print('Backend %s failed: %s' % (backend, e))
+          else:
+              print('No GL backend available - placeholder will be used')
           "
         continue-on-error: true
 

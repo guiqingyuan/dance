@@ -177,35 +177,66 @@ class SimState:
 
 sim = SimState()
 
-# ─── GL 后端自动检测 ──────────────────────────────────────────────────────────
-_RENDER_FAILED = False   # 所有后端均失败后置 True，避免反复重试
+# ─── GL backend auto-detection ───────────────────────────────────────────────
+_RENDER_FAILED = False
 
 
 def _make_placeholder() -> str:
-    """生成'3D 不可用'占位 JPEG（base64）"""
-    img = Image.new('RGB', (800, 600), (13, 16, 24))
+    """Return a base64 JPEG placeholder when rendering is unavailable."""
+    img  = Image.new('RGB', (800, 600), (13, 16, 24))
     draw = ImageDraw.Draw(img)
-    draw.rectangle([180, 240, 620, 360], fill=(30, 36, 56))
-    draw.text((400, 285), '3D 视图不可用', fill=(140, 160, 200), anchor='mm')
-    draw.text((400, 315), '未检测到可用的 OpenGL 渲染后端', fill=(80, 100, 140), anchor='mm')
+    draw.rectangle([150, 230, 650, 370], fill=(30, 36, 56))
+    draw.text((400, 270), '3D view unavailable', fill=(140, 160, 200), anchor='mm')
+    draw.text((400, 305), 'No OpenGL backend could be initialised.', fill=(90, 110, 150), anchor='mm')
+    draw.text((400, 335), 'Choreography editing still works normally.', fill=(70, 90, 130), anchor='mm')
     buf = io.BytesIO()
     img.save(buf, format='JPEG', quality=70)
     return base64.b64encode(buf.getvalue()).decode()
 
 
-_PLACEHOLDER = None   # 延迟生成（PIL 在 executor 线程里创建更安全）
+_PLACEHOLDER = None
+
+
+def _angle_egl_path() -> str | None:
+    """On Windows, locate Edge's ANGLE DLLs so EGL backend can work."""
+    import glob, platform
+    if platform.system() != 'Windows':
+        return None
+    patterns = [
+        r'C:\Program Files (x86)\Microsoft\Edge\Application\*',
+        r'C:\Program Files\Microsoft\Edge\Application\*',
+    ]
+    for pat in patterns:
+        dirs = sorted(glob.glob(pat), reverse=True)
+        if dirs:
+            return dirs[0]
+    return None
 
 
 def _ensure_renderer():
-    """在工作线程首次调用时按优先级尝试各 GL 后端"""
+    """Try GL backends in order; fall back to placeholder on total failure."""
     global _RENDER_FAILED, _PLACEHOLDER
     if sim.renderer is not None or _RENDER_FAILED:
         return
 
-    backends = [
-        (None,      '默认 (GLFW/WGL/OpenGL)'),
-        ('osmesa',  'OSMesa 软件渲染'),
-    ]
+    import platform
+    is_win = platform.system() == 'Windows'
+
+    # On Windows: EGL via ANGLE (no main-thread constraint) first,
+    # then default GLFW (may fail from worker thread), then osmesa.
+    # On Linux: default (EGL/GLFW) first, then osmesa.
+    backends = (
+        [('egl', 'EGL (ANGLE/DirectX)'), (None, 'Default (GLFW)'), ('osmesa', 'OSMesa')]
+        if is_win else
+        [(None, 'Default (EGL/GLFW)'), ('osmesa', 'OSMesa')]
+    )
+
+    # For Windows EGL, add Edge ANGLE DLL directory to PATH
+    angle_dir = _angle_egl_path()
+    if angle_dir:
+        os.environ['PATH'] = angle_dir + os.pathsep + os.environ.get('PATH', '')
+        print(f'[render] ANGLE path: {angle_dir}')
+
     for env_val, name in backends:
         try:
             if env_val is None:
@@ -213,15 +244,15 @@ def _ensure_renderer():
             else:
                 os.environ['MUJOCO_GL'] = env_val
             sim.renderer = mujoco.Renderer(sim.model, height=600, width=800)
-            print(f'[渲染] 已启用 {name}')
+            print(f'[render] backend: {name}')
             return
-        except Exception as e:
-            print(f'[渲染] {name} 失败: {e}')
+        except Exception as exc:
+            print(f'[render] {name} failed: {exc}')
             sim.renderer = None
 
     _RENDER_FAILED = True
     _PLACEHOLDER   = _make_placeholder()
-    print('[渲染] 所有后端均失败，3D 视图将显示占位图')
+    print('[render] all backends failed - serving placeholder')
 
 
 def _minjerk_step(q0, q1, tau):
@@ -386,7 +417,7 @@ async def ws_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     PORT = 8765
     print("=" * 55)
-    print("  A1Z 编舞器 Web 版")
+    print("  A1Z Choreography Editor")
     print(f"  http://localhost:{PORT}")
     print("=" * 55)
     CHOREO_DIR.mkdir(parents=True, exist_ok=True)
