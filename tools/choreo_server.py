@@ -8,7 +8,44 @@
   浏览器打开 http://localhost:8765
 """
 
-import asyncio, base64, io, json, math, time, os, sys, threading, webbrowser, queue
+# ─── GL backend 选择必须在 import mujoco 之前 ────────────────────────────────
+# mujoco/rendering/classic/gl_context.py 在 import 时读取 MUJOCO_GL 并固定
+# backend，之后再改 os.environ['MUJOCO_GL'] 没有任何效果。
+import os, sys, platform as _platform
+
+# PyInstaller bundle: add _MEIPASS to PATH so Windows can find bundled DLLs
+# (必须在 import mujoco 之前，否则 DLL 加载时 PATH 里还没有 _MEIPASS)
+if hasattr(sys, '_MEIPASS'):
+    os.environ['PATH'] = sys._MEIPASS + os.pathsep + os.environ.get('PATH', '')
+
+# 只有在用户没有手动设置 MUJOCO_GL 时才自动选择
+if not os.environ.get('MUJOCO_GL'):
+    _is_win = _platform.system() == 'Windows'
+    if _is_win:
+        # Windows: 优先 osmesa（软件渲染，在打包的 exe 里始终可用）
+        # 若 osmesa DLL 不存在会在 import 时抛 ImportError，回落到 glfw/WGL
+        try:
+            import ctypes, ctypes.util
+            # MuJoCo 打包的 osmesa DLL 路径
+            _osmesa_dll = (
+                os.path.join(sys._MEIPASS, 'osmesa.dll')
+                if hasattr(sys, '_MEIPASS')
+                else None
+            )
+            if _osmesa_dll and os.path.isfile(_osmesa_dll):
+                os.environ['MUJOCO_GL'] = 'osmesa'
+                print('[render] Windows: osmesa DLL found, using software rendering')
+            else:
+                # 没有 osmesa DLL，让 mujoco 使用默认 GLFW/WGL（需要真实 GPU）
+                print('[render] Windows: no osmesa DLL, using GLFW/WGL (requires GPU)')
+        except Exception as _e:
+            print(f'[render] Windows backend probe failed: {_e}, using default')
+    else:
+        # Linux / macOS: 优先 EGL（无头服务器最稳定）
+        os.environ['MUJOCO_GL'] = 'egl'
+        print('[render] Linux/macOS: using EGL backend')
+
+import asyncio, base64, io, json, math, time, threading, webbrowser, queue
 from pathlib import Path
 import numpy as np
 import mujoco
@@ -16,10 +53,6 @@ from PIL import Image, ImageDraw
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 import uvicorn
-
-# PyInstaller bundle: add _MEIPASS to PATH so Windows can find bundled ANGLE DLLs
-if hasattr(sys, '_MEIPASS'):
-    os.environ['PATH'] = sys._MEIPASS + os.pathsep + os.environ.get('PATH', '')
 
 # ─── Main-thread rendering queue ─────────────────────────────────────────────
 # All MuJoCo GL operations run on the main thread to satisfy GLFW/WGL/EGL
@@ -225,62 +258,27 @@ def _make_placeholder() -> str:
 _PLACEHOLDER = None
 
 
-def _angle_egl_path() -> str | None:
-    """On Windows, locate Edge's ANGLE DLLs so EGL backend can work."""
-    import glob, platform
-    if platform.system() != 'Windows':
-        return None
-    patterns = [
-        r'C:\Program Files (x86)\Microsoft\Edge\Application\*',
-        r'C:\Program Files\Microsoft\Edge\Application\*',
-    ]
-    for pat in patterns:
-        dirs = sorted(glob.glob(pat), reverse=True)
-        if dirs:
-            return dirs[0]
-    return None
-
-
 def _ensure_renderer():
-    """Try GL backends in order; fall back to placeholder on total failure."""
+    """初始化 MuJoCo renderer；失败时回落到占位图。
+
+    注意：MUJOCO_GL 必须在 import mujoco 之前设置（见文件顶部）。
+    此处不再尝试切换 backend——gl_context 在 import 时已固定，
+    改 os.environ 对已运行的进程没有任何效果。
+    """
     global _RENDER_FAILED, _PLACEHOLDER
     if sim.renderer is not None or _RENDER_FAILED:
         return
 
-    import platform
-    is_win = platform.system() == 'Windows'
-
-    # On Windows: EGL via ANGLE (no main-thread constraint) first,
-    # then default GLFW (may fail from worker thread), then osmesa.
-    # On Linux: default (EGL/GLFW) first, then osmesa.
-    backends = (
-        [('egl', 'EGL (ANGLE/DirectX)'), (None, 'Default (GLFW)'), ('osmesa', 'OSMesa')]
-        if is_win else
-        [(None, 'Default (EGL/GLFW)'), ('osmesa', 'OSMesa')]
-    )
-
-    # For Windows EGL, add Edge ANGLE DLL directory to PATH
-    angle_dir = _angle_egl_path()
-    if angle_dir:
-        os.environ['PATH'] = angle_dir + os.pathsep + os.environ.get('PATH', '')
-        print(f'[render] ANGLE path: {angle_dir}')
-
-    for env_val, name in backends:
-        try:
-            if env_val is None:
-                os.environ.pop('MUJOCO_GL', None)
-            else:
-                os.environ['MUJOCO_GL'] = env_val
-            sim.renderer = mujoco.Renderer(sim.model, height=600, width=800)
-            print(f'[render] backend: {name}')
-            return
-        except Exception as exc:
-            print(f'[render] {name} failed: {exc}')
-            sim.renderer = None
-
-    _RENDER_FAILED = True
-    _PLACEHOLDER   = _make_placeholder()
-    print('[render] all backends failed - serving placeholder')
+    backend = os.environ.get('MUJOCO_GL', '(default)')
+    try:
+        sim.renderer = mujoco.Renderer(sim.model, height=600, width=800)
+        print(f'[render] OK, backend={backend}')
+    except Exception as exc:
+        print(f'[render] failed (backend={backend}): {exc}')
+        sim.renderer = None
+        _RENDER_FAILED = True
+        _PLACEHOLDER   = _make_placeholder()
+        print('[render] all backends failed - serving placeholder')
 
 
 def _minjerk_step(q0, q1, tau):

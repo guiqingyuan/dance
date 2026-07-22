@@ -40,7 +40,7 @@ echo [1/4] Python OK
 :: ── Step 2: Install dependencies ─────────────────────────────
 echo.
 echo [2/4] Installing dependencies (may take a few minutes)...
-pip install --upgrade pyinstaller fastapi "uvicorn[standard]" pillow mujoco numpy h11 websockets anyio >> "%LOG%" 2>&1
+pip install --upgrade pyinstaller fastapi "uvicorn[standard]" pillow mujoco numpy h11 websockets anyio glfw >> "%LOG%" 2>&1
 if errorlevel 1 (
     echo [ERROR] pip install failed. See build_log.txt for details.
     echo.
@@ -53,7 +53,7 @@ echo [2/4] Dependencies OK
 :: ── Step 2.5: Render self-test ───────────────────────────────
 echo.
 echo [2.5/4] OpenGL render self-test...
-python -c "import mujoco; m=mujoco.MjModel.from_xml_string('<mujoco><worldbody/></mujoco>'); r=mujoco.Renderer(m,64,64); r.update_scene(mujoco.MjData(m)); print('Render OK shape='+str(r.render().shape))" >> "%LOG%" 2>&1
+python -c "import mujoco; m=mujoco.MjModel.from_xml_string('<mujoco><visual><global offwidth=\"800\" offheight=\"600\"/></visual></mujoco>'); d=mujoco.MjData(m); r=mujoco.Renderer(m,600,800); r.update_scene(d); print('Render OK shape='+str(r.render().shape))" >> "%LOG%" 2>&1
 if errorlevel 1 (
     echo [WARNING] OpenGL self-test failed - 3D view will show placeholder image.
     echo           Choreography editing still works. Continuing...

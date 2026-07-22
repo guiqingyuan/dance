@@ -10,13 +10,21 @@ HERE = Path(SPECPATH)          # tools/
 ROOT = HERE.parent             # sport/
 MESH_SRC = ROOT / 'A1Z_Flange' / 'meshes'
 
-# Collect all MuJoCo DLLs (includes ANGLE libEGL/libGLESv2 on Windows)
+# Collect MuJoCo DLLs + glfw DLLs (both needed for GLFW/WGL rendering on Windows)
+# collect_dynamic_libs('mujoco') 只收集 mujoco 的原生库
+# collect_dynamic_libs('glfw')   收集 glfw3.dll（Windows 渲染必须）
 mujoco_bins = collect_dynamic_libs('mujoco')
+try:
+    glfw_bins = collect_dynamic_libs('glfw')
+except Exception:
+    glfw_bins = []
+
+all_bins = mujoco_bins + glfw_bins
 
 a = Analysis(
     [str(HERE / 'choreo_server.py')],
     pathex=[str(HERE)],
-    binaries=mujoco_bins,
+    binaries=all_bins,
     datas=[
         # 前端页面
         (str(HERE / 'static'),       'static'),
@@ -39,6 +47,11 @@ a = Analysis(
         # 网络库
         'h11', 'websockets', 'websockets.legacy', 'websockets.legacy.server',
         'anyio', 'anyio._backends._asyncio', 'anyio.abc',
+        # GL / 渲染
+        'glfw',
+        'mujoco.glfw',
+        'mujoco.rendering.classic.gl_context',
+        'mujoco.rendering.classic.renderer',
         # 其他
         'PIL._tkinter_finder',
         'numpy',

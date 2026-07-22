@@ -26,28 +26,22 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pyinstaller fastapi "uvicorn[standard]" pillow mujoco numpy h11 websockets anyio
+          pip install pyinstaller fastapi "uvicorn[standard]" pillow mujoco numpy h11 websockets anyio glfw
 
       - name: Verify MuJoCo render (non-fatal)
         run: |
           python -c "
-          import os, mujoco
-          m = mujoco.MjModel.from_xml_string('<mujoco><worldbody/></mujoco>')
+          import mujoco
+          m = mujoco.MjModel.from_xml_string('<mujoco><visual><global offwidth=""800"" offheight=""600""/></visual></mujoco>')
           d = mujoco.MjData(m)
-          for backend in ['egl', 'osmesa', None]:
-              try:
-                  if backend:
-                      os.environ['MUJOCO_GL'] = backend
-                  else:
-                      os.environ.pop('MUJOCO_GL', None)
-                  r = mujoco.Renderer(m, 64, 64)
-                  r.update_scene(d)
-                  print('Render OK backend=%s shape=%s' % (backend, r.render().shape))
-                  break
-              except Exception as e:
-                  print('Backend %s failed: %s' % (backend, e))
-          else:
-              print('No GL backend available - placeholder will be used')
+          try:
+              r = mujoco.Renderer(m, 600, 800)
+              r.update_scene(d)
+              print('Render OK shape=%s' % str(r.render().shape))
+              r.close()
+          except Exception as e:
+              print('Render failed: %s' % e)
+              print('3D view will show placeholder - choreography editing still works')
           "
         continue-on-error: true
 
