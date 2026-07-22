@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+.env
+dist/
+build/
+*.spec.bak
+choreographies/*.json
+a1z_wall_simulation.mp4
+a1z_workspace.jpg

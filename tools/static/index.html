@@ -1,0 +1,1169 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>A1Z 编舞器</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Noto Sans CJK SC","WenQuanYi Micro Hei","Microsoft YaHei",sans-serif;
+     background:#161b28;color:#c8d0e0;display:flex;flex-direction:column;height:100vh;
+     overflow:hidden;user-select:none}
+button{cursor:pointer;border:none;outline:none;font-family:inherit}
+input{font-family:inherit}
+
+/* 顶部栏 */
+#topbar{display:flex;align-items:center;gap:6px;padding:5px 8px;background:#111520;
+        flex-shrink:0;flex-wrap:wrap}
+.btn{background:#2a3050;color:#c8d0e0;padding:4px 12px;border-radius:4px;font-size:13px}
+.btn:hover{background:#3a4468}
+.btn-green{background:#2a5030}.btn-green:hover{background:#3a6040}
+.btn-red{background:#501820}.btn-red:hover{background:#703020}
+#time-display{color:#80aaff;font-family:monospace;font-size:13px;min-width:70px}
+#speed-sel{background:#2a3050;color:#c8d0e0;border:none;padding:3px 6px;
+           border-radius:4px;font-size:13px;cursor:pointer}
+.sep{width:1px;height:20px;background:#2a3050;flex-shrink:0}
+
+/* 主体三栏 */
+#main{display:flex;flex:1;overflow:hidden;gap:0}
+
+/* 左栏 */
+#left{width:195px;flex-shrink:0;background:#1c2235;display:flex;
+      flex-direction:column;overflow-y:auto;border-right:1px solid #2a3050}
+.panel-title{font-size:12px;font-weight:bold;padding:6px 8px 2px;color:#c8d0e0;
+             background:#1a1f30;border-bottom:1px solid #2a3050}
+.arm-grid{display:flex;flex-direction:column;gap:2px;padding:6px}
+.arm-row{display:flex;gap:2px;justify-content:center}
+.arm-btn{width:28px;height:24px;font-size:11px;font-weight:bold;border-radius:3px;
+         background:#2a3050;transition:background .15s}
+.arm-btn.active{outline:2px solid white}
+
+/* 动作库 */
+#lib-list{flex:1;overflow-y:auto;padding:4px;min-height:100px}
+.lib-row{display:flex;align-items:center;gap:4px;margin:2px 0}
+.lib-num{color:#6080a0;font-size:11px;min-width:18px;text-align:right;flex-shrink:0}
+.chip{padding:5px 10px;border-radius:4px;font-size:12px;font-weight:bold;
+      color:white;flex:1;cursor:grab;display:block;white-space:nowrap;
+      overflow:hidden;text-overflow:ellipsis}
+.chip:hover{filter:brightness(1.15)}
+.chip:active{cursor:grabbing}
+.lib-rename-input{flex:1;background:#2a3050;color:#c8d0e0;border:1px solid #4a90d9;
+                   padding:4px 8px;border-radius:4px;font-size:12px}
+/* 关节角只读表格 */
+.joint-table{width:100%;border-collapse:collapse;margin-bottom:10px}
+.joint-table th{padding:3px 8px;text-align:left;color:#607080;font-size:11px;
+                border-bottom:1px solid #2a3050}
+.joint-table td{padding:4px 8px;font-size:12px}
+.joint-table tr:hover td{background:#1e2840}
+
+/* 批量应用 */
+#batch-grid{display:flex;flex-direction:column;gap:2px;padding:4px 6px}
+.batch-row{display:flex;gap:3px}
+.batch-cb{display:flex;align-items:center;gap:2px;font-size:11px}
+.batch-cb input{width:13px;height:13px;cursor:pointer;accent-color:#4a90d9}
+#batch-btns{display:flex;flex-wrap:wrap;gap:3px;padding:3px 6px}
+#batch-btns button{background:#2a3050;color:#c8d0e0;font-size:11px;
+                    padding:2px 7px;border-radius:3px}
+#batch-btns button:hover{background:#3a4468}
+#batch-apply{margin:3px 6px;background:#2a5030;color:white;font-size:12px;
+              padding:4px 8px;border-radius:4px;display:block;width:calc(100% - 12px)}
+#batch-apply:hover{background:#3a6040}
+
+/* 分组 */
+#group-list{padding:4px 6px;display:flex;flex-direction:column;gap:2px}
+.group-item{display:flex;align-items:center;padding:3px 6px;border-radius:3px;
+            font-size:11px;gap:4px}
+.group-item span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.group-item button{background:rgba(255,255,255,.15);color:white;font-size:10px;
+                    padding:1px 5px;border-radius:2px;flex-shrink:0}
+#new-group-btn{margin:3px 6px 6px;background:#1e3050;color:#c8d0e0;font-size:12px;
+               padding:3px 8px;border-radius:4px;display:block;width:calc(100% - 12px)}
+#new-group-btn:hover{background:#2a4060}
+
+/* 中栏 3D */
+#center{flex:1;display:flex;flex-direction:column;background:#0d1018;min-width:0}
+#view3d{flex:1;position:relative;overflow:hidden;cursor:grab}
+#view3d:active{cursor:grabbing}
+#mj-img{width:100%;height:100%;object-fit:fill;display:block}
+#view-hint{position:absolute;bottom:6px;right:8px;font-size:10px;color:#ffffff50}
+
+/* 右栏 */
+#right{width:230px;flex-shrink:0;background:#1c2235;overflow-y:auto;
+       border-left:1px solid #2a3050;padding-bottom:8px}
+.slider-row{display:flex;align-items:center;gap:4px;padding:2px 8px}
+.slider-row label{width:20px;font-size:11px;color:#c8d0e0;flex-shrink:0}
+.slider-row input[type=range]{flex:1;accent-color:#4a90d9}
+.slider-row input[type=number]{width:60px;background:#2a3050;color:#80aaff;border:none;
+                                padding:2px 4px;border-radius:3px;font-size:11px;
+                                font-family:monospace}
+.field-row{display:flex;align-items:center;gap:4px;padding:3px 8px}
+.field-row label{font-size:12px;color:#c8d0e0;min-width:30px}
+.field-row input[type=text]{flex:1;background:#2a3050;color:#c8d0e0;border:none;
+                              padding:3px 6px;border-radius:3px;font-size:12px}
+.field-row input[type=range]{flex:1;accent-color:#4a90d9}
+#dur-display{font-size:11px;color:#80aaff;min-width:35px}
+.right-btn{display:block;width:calc(100% - 16px);margin:4px 8px;padding:5px;
+           border-radius:4px;font-size:12px}
+
+/* 积木序列轨道 */
+#seq-wrap{height:230px;flex-shrink:0;background:#0e1420;display:flex;
+          flex-direction:column;border-top:2px solid #2a3050;position:relative}
+#seq-canvas{flex:1;cursor:default}
+
+/* 拖拽浮动块 */
+#drag-ghost{position:fixed;pointer-events:none;padding:4px 12px;border-radius:4px;
+            color:white;font-size:12px;font-weight:bold;z-index:9999;
+            opacity:.88;box-shadow:0 4px 16px rgba(0,0,0,.5);display:none;
+            transform:translate(-50%,-50%)}
+
+/* 右键菜单 */
+#ctx-menu{position:fixed;background:#1e2540;border:1px solid #3a4468;border-radius:6px;
+          box-shadow:0 6px 20px rgba(0,0,0,.6);z-index:9998;display:none;min-width:140px;
+          max-height:200px;overflow-y:auto;overflow-x:hidden}
+.ctx-item{padding:7px 14px;font-size:13px;cursor:pointer;color:#c8d0e0}
+.ctx-item:hover{background:#2a3050}
+.ctx-sep{height:1px;background:#2a3050;margin:2px 0}
+.ctx-item.disabled{color:#506070;cursor:default}
+.ctx-item.disabled:hover{background:transparent}
+
+/* 模态对话框 */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:10000;
+               display:flex;align-items:center;justify-content:center}
+.modal{background:#1c2235;border-radius:8px;padding:20px;min-width:300px;
+       box-shadow:0 8px 32px rgba(0,0,0,.7)}
+.modal h3{margin-bottom:12px;font-size:14px;color:#c8d0e0}
+.modal label{display:block;font-size:12px;margin-bottom:4px;color:#a0b0c0}
+.modal input[type=text]{width:100%;background:#2a3050;color:#c8d0e0;border:none;
+                          padding:6px 8px;border-radius:4px;font-size:13px;margin-bottom:12px}
+.modal-btns{display:flex;justify-content:flex-end;gap:8px}
+.modal-btns button{padding:5px 16px;border-radius:4px;font-size:13px;color:white}
+.modal-btns .ok{background:#2a5030}.modal-btns .ok:hover{background:#3a6040}
+.modal-btns .cancel{background:#2a3050}.modal-btns .cancel:hover{background:#3a4468}
+.modal .arm-grid{margin-bottom:12px}
+
+/* 滚动条样式 */
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:#0d1018}
+::-webkit-scrollbar-thumb{background:#2a3050;border-radius:3px}
+</style>
+</head>
+<body>
+
+<!-- 顶部控制栏 -->
+<div id="topbar">
+  <button class="btn btn-green" onclick="play()">播放</button>
+  <button class="btn btn-red"   onclick="stop()">停止</button>
+  <button class="btn"           onclick="seek()">重置</button>
+  <span id="time-display">0.00 s</span>
+  <div class="sep"></div>
+  <label style="font-size:12px">速度:</label>
+  <select id="speed-sel" onchange="setSpeed(this.value)">
+    <option value="0.25">0.25x</option>
+    <option value="0.5">0.5x</option>
+    <option value="1.0" selected>1.0x</option>
+    <option value="2.0">2.0x</option>
+  </select>
+  <div class="sep"></div>
+  <button class="btn" onclick="clearAll()">清空</button>
+  <button class="btn" onclick="loadFile()">载入</button>
+  <button class="btn" onclick="saveFile()">保存</button>
+</div>
+
+<!-- 主体 -->
+<div id="main">
+
+  <!-- 左栏 -->
+  <div id="left">
+    <div class="panel-title">机械臂选择</div>
+    <div class="arm-grid" id="arm-grid"></div>
+
+    <div class="panel-title">动作库 &nbsp;<span style="font-weight:normal;font-size:11px;color:#608090">拖入轨道</span></div>
+    <div id="lib-list"></div>
+
+    <div class="panel-title">批量应用目标臂</div>
+    <div id="batch-grid"></div>
+    <div id="batch-btns">
+      <button onclick="batchSel(true)">全选</button>
+      <button onclick="batchSel(false)">全清</button>
+      <button onclick="batchRow(0,5)">上排</button>
+      <button onclick="batchRow(5,9)">中排</button>
+      <button onclick="batchRow(9,12)">下排</button>
+    </div>
+    <button id="batch-apply" onclick="batchApply()">将选中动作加入勾选的臂</button>
+
+    <div class="panel-title">分组管理</div>
+    <div id="group-list"></div>
+    <button id="new-group-btn" onclick="showNewGroup()">+ 新建分组</button>
+  </div>
+
+  <!-- 中栏 3D 预览 -->
+  <div id="center">
+    <div id="view3d">
+      <img id="mj-img" src="" alt=""/>
+      <div id="view-hint">左键旋转 · 右键/滚轮缩放</div>
+    </div>
+  </div>
+
+  <!-- 右栏 关节调整 -->
+  <div id="right">
+    <div class="panel-title">关节调整 &nbsp;<span style="font-weight:normal;font-size:11px;color:#608090">选中臂实时预览</span></div>
+    <div id="slider-area"></div>
+    <hr style="border-color:#2a3050;margin:6px 8px">
+    <div class="field-row">
+      <label>名称</label>
+      <input type="text" id="blk-name" value="自定义" style="flex:1">
+    </div>
+    <div class="field-row">
+      <label>时长</label>
+      <input type="range" id="dur-sl" min="0.2" max="8" step="0.1" value="2.0"
+             oninput="document.getElementById('dur-display').textContent=parseFloat(this.value).toFixed(1)+'s'">
+      <span id="dur-display">2.0s</span>
+    </div>
+    <button class="right-btn btn btn-green" onclick="addToArm()">加入当前臂序列</button>
+    <button class="right-btn btn" onclick="saveToLib()">保存为新动作</button>
+  </div>
+
+</div>
+
+<!-- 积木序列轨道 -->
+<div id="seq-wrap">
+  <canvas id="seq-canvas"></canvas>
+</div>
+
+<!-- 拖拽浮动 ghost -->
+<div id="drag-ghost"></div>
+
+<!-- 右键菜单 -->
+<div id="ctx-menu"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════
+// 常量
+// ═══════════════════════════════════════════════════════════════
+const N_ARMS = 12, N_DOF = 6;
+const PI = Math.PI;
+const ARM_ROW = [0,0,0,0,0, 1,1,1,1, 2,2,2];
+const ROW_TINT = ["#c8944a","#5a7fbf","#4aab78"];
+const GROUP_COLORS = ["#7a3020","#3a5820","#1a4468","#482058","#0e5448","#6a3808"];
+const BLOCK_COLORS = ["#b84a22","#9a7808","#2e7a2e","#1a58a8",
+                      "#603898","#9a2860","#0e6868","#506010"];
+const JLIM = [[-2.094,2.094],[-3.34,3.34],[-3.34,0.1],
+              [-1.309,1.309],[-1.484,1.484],[-2.007,2.007]];
+const JNAMES = ["J1","J2","J3","J4","J5","J6"];
+const POSE_EQUIL = [0, PI, -PI, 0, 0, 0];
+
+const BW=108, BH=36, BGAP=24, ARM_RH=52, GRP_RH=44, SL=44;
+
+const PRESETS = [
+  {name:"下垂",   pose:[0,PI,-PI,0,0,0],        color:"#b84a22"},
+  {name:"水平伸展",pose:[0,PI/2,-PI/2,0,0,0],    color:"#9a7808"},
+  {name:"举起45", pose:[0,PI/4,-PI/4,0,0,0],    color:"#2e7a2e"},
+  {name:"左摆",   pose:[PI/4,PI/2,-PI/2,0,0,0], color:"#1a58a8"},
+  {name:"右摆",   pose:[-PI/4,PI/2,-PI/2,0,0,0],color:"#603898"},
+  {name:"内收",   pose:[0,2.0,-2.5,0,0,0],       color:"#9a2860"},
+  {name:"展开",   pose:[0,PI/3,-PI/3,0.8,0,0],  color:"#0e6868"},
+  {name:"腕旋",   pose:[0,PI/2,-PI/2,0,PI/3,1.0],color:"#506010"},
+];
+
+// ═══════════════════════════════════════════════════════════════
+// 状态
+// ═══════════════════════════════════════════════════════════════
+let sequences   = Array.from({length:N_ARMS},()=>[]);
+let livePoses   = Array.from({length:N_ARMS},()=>[...POSE_EQUIL]);
+let groups      = [];   // [{name,arms:[int],color}]
+let selArm      = 0;
+let selBlock    = null; // {arm,bi}
+let clipboard   = null; // block dict
+let isPlaying   = false;
+let lastDur     = 2.0;
+
+// 拖拽状态
+let drag = null;  // {name,pose,color,dur,srcArm,srcBi} or null
+const ghost = document.getElementById('drag-ghost');
+
+// ═══════════════════════════════════════════════════════════════
+// WebSocket
+// ═══════════════════════════════════════════════════════════════
+let ws;
+function connectWS() {
+  ws = new WebSocket(`ws://${location.host}/ws`);
+  ws.onmessage = (ev) => {
+    const msg = JSON.parse(ev.data);
+    if (msg.type === 'frame') {
+      document.getElementById('mj-img').src = 'data:image/jpeg;base64,' + msg.data;
+      isPlaying = msg.playing;
+      document.getElementById('time-display').textContent =
+        msg.time.toFixed(2) + ' s';
+    }
+  };
+  ws.onclose = () => setTimeout(connectWS, 1000);
+}
+connectWS();
+
+function send(obj) {
+  if (ws && ws.readyState === WebSocket.OPEN)
+    ws.send(JSON.stringify(obj));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 机械臂选择
+// ═══════════════════════════════════════════════════════════════
+function buildArmGrid() {
+  const el = document.getElementById('arm-grid');
+  el.innerHTML = '';
+  const rows = [[0,5],[5,9],[9,12]];
+  rows.forEach(([s,e],ri)=>{
+    const row = document.createElement('div');
+    row.className='arm-row';
+    for(let i=s;i<e;i++){
+      const b=document.createElement('button');
+      b.className='arm-btn';
+      b.id='arm-btn-'+i;
+      b.textContent=i+1;
+      b.style.color=ROW_TINT[ARM_ROW[i]];
+      b.onclick=()=>selectArm(i);
+      row.appendChild(b);
+    }
+    el.appendChild(row);
+  });
+  refreshArmBtns();
+}
+
+function selectArm(i) {
+  selArm = i;
+  refreshArmBtns();
+  syncSliders(livePoses[i]);
+}
+
+function refreshArmBtns() {
+  for(let i=0;i<N_ARMS;i++){
+    const b=document.getElementById('arm-btn-'+i);
+    if(!b) continue;
+    b.style.background = i===selArm ? ROW_TINT[ARM_ROW[i]] : '#2a3050';
+    b.style.outline    = i===selArm ? '2px solid white' : 'none';
+  }
+}
+
+// 批量选择复选框
+function buildBatchGrid() {
+  const el = document.getElementById('batch-grid');
+  el.innerHTML='';
+  const rows=[[0,5],[5,9],[9,12]];
+  rows.forEach(([s,e],ri)=>{
+    const row=document.createElement('div');
+    row.className='batch-row';
+    for(let i=s;i<e;i++){
+      const lbl=document.createElement('label');
+      lbl.className='batch-cb';
+      const cb=document.createElement('input');
+      cb.type='checkbox'; cb.id='batch-'+i;
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode('A'+(i+1)));
+      lbl.style.color=ROW_TINT[ARM_ROW[i]];
+      row.appendChild(lbl);
+    }
+    el.appendChild(row);
+  });
+}
+
+function batchSel(val) {
+  for(let i=0;i<N_ARMS;i++){
+    const cb=document.getElementById('batch-'+i);
+    if(cb) cb.checked=val;
+  }
+}
+function batchRow(s,e) {
+  batchSel(false);
+  for(let i=s;i<e;i++){
+    const cb=document.getElementById('batch-'+i);
+    if(cb) cb.checked=true;
+  }
+}
+function batchApply() {
+  const name = document.getElementById('blk-name').value.trim()||'自定义';
+  const pose = [...livePoses[selArm]];
+  const dur  = parseFloat(document.getElementById('dur-sl').value)||2.0;
+  const color= BLOCK_COLORS[sequences.reduce((a,s)=>a+s.length,0)%BLOCK_COLORS.length];
+  for(let i=0;i<N_ARMS;i++){
+    const cb=document.getElementById('batch-'+i);
+    if(cb && cb.checked)
+      sequences[i].push({name,pose:[...pose],duration:dur,color});
+  }
+  drawSeq();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 动作库
+// ═══════════════════════════════════════════════════════════════
+let libItems = PRESETS.map(p=>({...p,pose:[...p.pose]}));
+
+function buildLib() {
+  const el=document.getElementById('lib-list');
+  el.innerHTML='';
+  libItems.forEach((item,idx)=>{
+    const row=document.createElement('div');
+    row.className='lib-row';
+
+    const num=document.createElement('span');
+    num.className='lib-num';
+    num.textContent=(idx+1)+'.';
+
+    const d=document.createElement('div');
+    d.className='chip';
+    d.textContent=item.name;
+    d.style.background=item.color;
+
+    // 拖拽
+    d.addEventListener('pointerdown', e=>{
+      if(e.button!==0) return;
+      startDragLib(e, item);
+    });
+
+    // 双击改名
+    d.addEventListener('dblclick', e=>{
+      e.stopPropagation();
+      startRenameLib(idx, d, row);
+    });
+
+    // 右键菜单
+    d.addEventListener('contextmenu', e=>{
+      e.preventDefault(); e.stopPropagation();
+      buildCtxMenu([
+        {label:'改名', fn:()=>startRenameLib(idx, d, row)},
+        {sep:true},
+        {label:'删除动作', fn:()=>{ libItems.splice(idx,1); buildLib(); }},
+      ], e.clientX, e.clientY);
+    });
+
+    row.append(num, d);
+    el.appendChild(row);
+  });
+}
+
+function startRenameLib(idx, chipEl, rowEl) {
+  const oldName=libItems[idx].name;
+  const input=document.createElement('input');
+  input.className='lib-rename-input';
+  input.value=oldName;
+  rowEl.replaceChild(input, chipEl);
+  input.focus(); input.select();
+
+  const done=()=>{
+    const n=input.value.trim()||oldName;
+    libItems[idx].name=n;
+    chipEl.textContent=n;
+    rowEl.replaceChild(chipEl, input);
+  };
+  input.onblur=done;
+  input.onkeydown=e=>{
+    if(e.key==='Enter'){ e.preventDefault(); done(); }
+    if(e.key==='Escape'){ rowEl.replaceChild(chipEl, input); }
+  };
+}
+
+function saveToLib() {
+  const name=document.getElementById('blk-name').value.trim()||'自定义';
+  const pose=[...livePoses[selArm]];
+  const color=BLOCK_COLORS[libItems.length%BLOCK_COLORS.length];
+  libItems.push({name,pose,color});
+  buildLib();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 关节滑块
+// ═══════════════════════════════════════════════════════════════
+function buildSliders() {
+  const el=document.getElementById('slider-area');
+  el.innerHTML='';
+  for(let j=0;j<N_DOF;j++){
+    const [lo,hi]=JLIM[j];
+    const row=document.createElement('div');
+    row.className='slider-row';
+    const lbl=document.createElement('label');
+    lbl.textContent=JNAMES[j];
+    const sl=document.createElement('input');
+    sl.type='range'; sl.min=lo; sl.max=hi; sl.step=0.01;
+    sl.value=POSE_EQUIL[j]; sl.id='sl-'+j;
+    const num=document.createElement('input');
+    num.type='number'; num.min=lo; num.max=hi; num.step=0.01;
+    num.value=POSE_EQUIL[j].toFixed(3); num.id='num-'+j;
+    sl.oninput=()=>{
+      const v=parseFloat(sl.value);
+      num.value=v.toFixed(3);
+      livePoses[selArm][j]=v;
+      send({type:'set_pose',arm:selArm,pose:livePoses[selArm]});
+    };
+    num.onchange=()=>{
+      let v=parseFloat(num.value);
+      v=Math.max(lo,Math.min(hi,v));
+      num.value=v.toFixed(3); sl.value=v;
+      livePoses[selArm][j]=v;
+      send({type:'set_pose',arm:selArm,pose:livePoses[selArm]});
+    };
+    row.append(lbl,sl,num);
+    el.appendChild(row);
+  }
+}
+
+function syncSliders(pose) {
+  for(let j=0;j<N_DOF;j++){
+    const sl=document.getElementById('sl-'+j);
+    const num=document.getElementById('num-'+j);
+    if(sl) sl.value=pose[j];
+    if(num) num.value=pose[j].toFixed(3);
+  }
+}
+
+function addToArm() {
+  const name=document.getElementById('blk-name').value.trim()||'自定义';
+  const pose=[...livePoses[selArm]];
+  const dur=parseFloat(document.getElementById('dur-sl').value)||2.0;
+  const color=BLOCK_COLORS[sequences[selArm].length%BLOCK_COLORS.length];
+  sequences[selArm].push({name,pose,duration:dur,color});
+  drawSeq();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 3D 视图相机控制
+// ═══════════════════════════════════════════════════════════════
+const img3d=document.getElementById('mj-img');
+let cam={az:180,el:-15,dist:9};
+let camDrag=null;
+
+img3d.addEventListener('mousedown',e=>{
+  e.preventDefault();
+  camDrag={btn:e.button,sx:e.clientX,sy:e.clientY,az:cam.az,el:cam.el,dist:cam.dist};
+});
+document.addEventListener('mousemove',e=>{
+  if(!camDrag) return;
+  const dx=e.clientX-camDrag.sx, dy=e.clientY-camDrag.sy;
+  if(camDrag.btn===0){
+    cam.az=camDrag.az-dx*0.4;
+    cam.el=camDrag.el+dy*0.3;
+  } else {
+    cam.dist=Math.max(2,camDrag.dist+dy*0.05);
+  }
+  send({type:'set_cam',az:cam.az,el:cam.el,dist:cam.dist});
+});
+document.addEventListener('mouseup',()=>{ camDrag=null; });
+img3d.addEventListener('wheel',e=>{
+  e.preventDefault();
+  cam.dist=Math.max(2,cam.dist+e.deltaY*0.02);
+  send({type:'set_cam',az:cam.az,el:cam.el,dist:cam.dist});
+},{passive:false});
+img3d.addEventListener('contextmenu',e=>e.preventDefault());
+
+// ═══════════════════════════════════════════════════════════════
+// 序列轨道 canvas
+// ═══════════════════════════════════════════════════════════════
+const seqCv=document.getElementById('seq-canvas');
+const ctx=seqCv.getContext('2d');
+let seqScroll={x:0,y:0};
+let blockRects=[]; // [{arm,bi,x1,y1,x2,y2,grp,gi}]
+let hintLine=null; // {arm,grp,gi,pos,x,y0,y1}
+let totalSeqW=0, totalSeqH=0;
+
+function resizeSeqCanvas() {
+  const wrap=document.getElementById('seq-wrap');
+  seqCv.width=wrap.clientWidth;
+  seqCv.height=wrap.clientHeight;
+  drawSeq();
+}
+new ResizeObserver(resizeSeqCanvas).observe(document.getElementById('seq-wrap'));
+
+function armRowY(arm) {
+  return groups.length*GRP_RH + arm*ARM_RH - seqScroll.y;
+}
+function grpRowY(gi) {
+  return gi*GRP_RH - seqScroll.y;
+}
+function blockX(bi) {
+  return SL + bi*(BW+BGAP) - seqScroll.x;
+}
+
+function drawSeq() {
+  const W=seqCv.width, H=seqCv.height;
+  ctx.clearRect(0,0,W,H);
+  blockRects=[];
+
+  const maxN=Math.max(0,...sequences.map(s=>s.length),...groups.map(g=>{
+    const ref=g.arms[0]!=null?sequences[g.arms[0]]:[];
+    return ref.length;
+  }));
+  totalSeqW=SL+maxN*(BW+BGAP)+60;
+  totalSeqH=groups.length*GRP_RH+N_ARMS*ARM_RH;
+
+  // 分组行
+  groups.forEach((g,gi)=>{
+    const y0=grpRowY(gi), y1=y0+GRP_RH;
+    if(y1<0||y0>H) return;
+    ctx.fillStyle='#151c2a';
+    ctx.fillRect(0,y0,W,GRP_RH);
+    ctx.fillStyle=g.color;
+    ctx.fillRect(0,y0,SL,GRP_RH);
+    ctx.fillStyle='white';
+    ctx.font='bold 11px sans-serif';
+    ctx.fillText(g.name,4,y0+GRP_RH/2+4);
+    // 参考第一条臂的积木
+    const refArm=g.arms[0]??-1;
+    const ref=refArm>=0?sequences[refArm]:[];
+    ref.forEach((blk,bi)=>{
+      const x=blockX(bi), bh=30, by=y0+(GRP_RH-bh)/2;
+      ctx.fillStyle=blk.color;
+      ctx.beginPath();ctx.roundRect(x,by,BW,bh,4);ctx.fill();
+      ctx.fillStyle='white';
+      ctx.font='bold 10px sans-serif';
+      ctx.textAlign='center';
+      ctx.fillText(blk.name,x+BW/2,by+bh/2+3);
+      ctx.textAlign='left';
+      blockRects.push({grp:true,gi,bi,x1:x,y1:by,x2:x+BW,y2:by+bh});
+      if(bi<ref.length-1){
+        const yc=y0+GRP_RH/2;
+        ctx.strokeStyle=g.color; ctx.lineWidth=2;
+        arrow(x+BW,yc,x+BW+BGAP,yc);
+      }
+    });
+    // 落点指示
+    if(hintLine&&hintLine.grp&&hintLine.gi===gi){
+      drawHint(hintLine.x,y0+4,y0+GRP_RH-4);
+    }
+  });
+
+  // 臂行
+  for(let arm=0;arm<N_ARMS;arm++){
+    const y0=armRowY(arm), y1=y0+ARM_RH;
+    if(y1<0||y0>H) continue;
+    ctx.fillStyle=arm===selArm?'#1a2840':(arm%2?'#0f1420':'#131828');
+    ctx.fillRect(0,y0,W,ARM_RH);
+    ctx.fillStyle=ROW_TINT[ARM_ROW[arm]];
+    ctx.font='bold 11px sans-serif';
+    ctx.fillText('A'+(arm+1),4,y0+ARM_RH/2+4);
+    const blks=sequences[arm];
+    const yc=y0+ARM_RH/2;
+    blks.forEach((blk,bi)=>{
+      const x=blockX(bi), by=y0+(ARM_RH-BH)/2;
+      const sel=selBlock&&selBlock.arm===arm&&selBlock.bi===bi;
+      ctx.fillStyle=blk.color;
+      ctx.beginPath();ctx.roundRect(x,by,BW,BH,4);ctx.fill();
+      if(sel){ctx.strokeStyle='white';ctx.lineWidth=2;
+               ctx.beginPath();ctx.roundRect(x,by,BW,BH,4);ctx.stroke();}
+      ctx.fillStyle='white';
+      ctx.font='bold 11px sans-serif';
+      ctx.textAlign='center';
+      ctx.fillText(blk.name,x+BW/2,yc-5);
+      ctx.font='10px sans-serif';
+      ctx.fillStyle='rgba(255,255,255,.65)';
+      ctx.fillText(blk.duration.toFixed(1)+'s',x+BW/2,yc+9);
+      ctx.textAlign='left';
+      blockRects.push({grp:false,arm,bi,x1:x,y1:by,x2:x+BW,y2:by+BH});
+      if(bi<blks.length-1){
+        ctx.strokeStyle=ROW_TINT[ARM_ROW[arm]]; ctx.lineWidth=2;
+        arrow(x+BW,yc,x+BW+BGAP,yc);
+      }
+    });
+    if(hintLine&&!hintLine.grp&&hintLine.arm===arm){
+      drawHint(hintLine.x,y0+4,y0+ARM_RH-4);
+    }
+  }
+}
+
+function arrow(x1,y,x2,_y2){
+  ctx.beginPath();ctx.moveTo(x1,y);ctx.lineTo(x2,y);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x2,y);ctx.lineTo(x2-8,y-4);ctx.lineTo(x2-8,y+4);
+  ctx.closePath();ctx.fill();
+}
+function drawHint(x,y0,y1){
+  ctx.strokeStyle='white';ctx.lineWidth=3;
+  ctx.setLineDash([4,2]);
+  ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1);ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+// 滚动
+seqCv.addEventListener('wheel',e=>{
+  e.preventDefault();
+  if(e.shiftKey){
+    seqScroll.x=Math.max(0,seqScroll.x+e.deltaY);
+  } else {
+    seqScroll.y=Math.max(0,seqScroll.y+e.deltaY);
+  }
+  drawSeq();
+},{passive:false});
+
+// 坐标转换
+function canvasXY(e){
+  const r=seqCv.getBoundingClientRect();
+  return {cx:e.clientX-r.left+seqScroll.x, cy:e.clientY-r.top+seqScroll.y};
+}
+function hitTest(cx,cy){
+  for(const r of blockRects){
+    if(cx>=r.x1&&cx<=r.x2&&cy>=r.y1&&cy<=r.y2) return r;
+  }
+  return null;
+}
+function rowAt(cy){
+  // 分组行
+  for(let gi=0;gi<groups.length;gi++){
+    if(cy>=gi*GRP_RH&&cy<(gi+1)*GRP_RH) return {grp:true,gi,arm:null};
+  }
+  const ay=cy-groups.length*GRP_RH;
+  const arm=Math.max(0,Math.min(N_ARMS-1,Math.floor(ay/ARM_RH)));
+  return {grp:false,gi:null,arm};
+}
+function insertPos(arm,cx){
+  const blks=sequences[arm]||[];
+  for(let bi=0;bi<blks.length;bi++){
+    if(cx<SL+bi*(BW+BGAP)+BW/2) return bi;
+  }
+  return blks.length;
+}
+function calcHint(e){
+  const r=seqCv.getBoundingClientRect();
+  if(e.clientX<r.left||e.clientX>r.right||e.clientY<r.top||e.clientY>r.bottom)
+    return null;
+  const {cx,cy}=canvasXY(e);
+  const row=rowAt(cy);
+  if(row.grp){
+    const ref=groups[row.gi].arms[0]??-1;
+    const pos=ref>=0?insertPos(ref,cx):0;
+    return {grp:true,gi:row.gi,arm:null,pos,
+            x:SL+pos*(BW+BGAP)-1};
+  } else {
+    const pos=insertPos(row.arm,cx);
+    return {grp:false,gi:null,arm:row.arm,pos,
+            x:SL+pos*(BW+BGAP)-1};
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 拖拽系统
+// ═══════════════════════════════════════════════════════════════
+function startDragLib(e, item) {
+  e.preventDefault();
+  drag={name:item.name, pose:[...item.pose], color:item.color,
+        dur:parseFloat(document.getElementById('dur-sl').value)||2.0,
+        srcArm:-1, srcBi:-1};
+  ghost.style.background=item.color;
+  ghost.textContent=item.name;
+  ghost.style.display='block';
+  ghost.style.left=e.clientX+'px';
+  ghost.style.top=e.clientY+'px';
+}
+
+seqCv.addEventListener('pointerdown',e=>{
+  if(e.button!==0) return;
+  const {cx,cy}=canvasXY(e);
+  const hit=hitTest(cx,cy);
+  if(hit&&!hit.grp){
+    const blk=sequences[hit.arm][hit.bi];
+    selBlock={arm:hit.arm,bi:hit.bi};
+    selArm=hit.arm; refreshArmBtns(); syncSliders(livePoses[hit.arm]);
+    drag={name:blk.name,pose:[...blk.pose],color:blk.color,
+          dur:blk.duration,srcArm:hit.arm,srcBi:hit.bi};
+    ghost.style.background=blk.color;
+    ghost.textContent=blk.name;
+    ghost.style.display='block';
+    ghost.style.left=e.clientX+'px';
+    ghost.style.top=e.clientY+'px';
+    drawSeq();
+  }
+});
+
+document.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  ghost.style.left=e.clientX+'px';
+  ghost.style.top=e.clientY+'px';
+  hintLine=calcHint(e);
+  drawSeq();
+});
+
+document.addEventListener('pointerup',e=>{
+  if(!drag) return;
+  ghost.style.display='none';
+  doDrop(e);
+  drag=null; hintLine=null;
+  drawSeq();
+});
+
+function doDrop(e) {
+  const hint=calcHint(e);
+  if(!hint) return;
+  const blk={name:drag.name,pose:[...drag.pose],duration:drag.dur,color:drag.color};
+  if(hint.grp){
+    const g=groups[hint.gi];
+    // 如果是从 seq 内部拖动，先删除
+    if(drag.srcArm>=0){
+      sequences[drag.srcArm].splice(drag.srcBi,1);
+    }
+    g.arms.forEach(arm=>{
+      sequences[arm].splice(hint.pos,0,{...blk,pose:[...blk.pose]});
+    });
+  } else {
+    let pos=hint.pos;
+    if(drag.srcArm>=0){
+      const sa=drag.srcArm, sbi=drag.srcBi;
+      sequences[sa].splice(sbi,1);
+      if(sa===hint.arm&&sbi<pos) pos=Math.max(0,pos-1);
+    }
+    sequences[hint.arm].splice(pos,0,blk);
+    selBlock={arm:hint.arm,bi:pos};
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 右键菜单
+// ═══════════════════════════════════════════════════════════════
+const ctxMenu=document.getElementById('ctx-menu');
+
+function hideCtx(){ctxMenu.style.display='none';}
+
+// 点到菜单外时关闭（pointerdown 对左右键都生效，且不会误关菜单内的点击）
+document.addEventListener('pointerdown', e=>{
+  if(ctxMenu.style.display!=='none' && !ctxMenu.contains(e.target)) hideCtx();
+});
+
+// 菜单自身滚轮：主动接管，阻止冒泡和默认行为，避免触发背景 canvas 滚动
+ctxMenu.addEventListener('wheel', e=>{
+  e.stopPropagation();
+  e.preventDefault();
+  ctxMenu.scrollTop += e.deltaY;
+}, {passive:false});
+
+seqCv.addEventListener('contextmenu',e=>{
+  e.preventDefault();
+  e.stopPropagation();
+  const {cx,cy}=canvasXY(e);
+  const hit=hitTest(cx,cy);
+  const items=[];
+  if(hit&&!hit.grp){
+    const arm=hit.arm,bi=hit.bi;
+    items.push({label:'查看关节角', fn:()=>showJointInfo(arm,bi)});
+    items.push({sep:true});
+    items.push({label:'复制',       fn:()=>{clipboard={...sequences[arm][bi],pose:[...sequences[arm][bi].pose]}}});
+    items.push({label:'粘贴到前面', fn:()=>pasteBlock(arm,bi),   disabled:!clipboard});
+    items.push({label:'粘贴到后面', fn:()=>pasteBlock(arm,bi+1), disabled:!clipboard});
+    items.push({sep:true});
+    items.push({label:'复制到全部臂',fn:()=>copyToAll(arm,bi)});
+    items.push({sep:true});
+    items.push({label:'删除',       fn:()=>{sequences[arm].splice(bi,1);selBlock=null;drawSeq();}});
+  } else {
+    const row=rowAt(cy);
+    const arm=row.grp?null:row.arm;
+    const pos=arm!=null?insertPos(arm,cx):0;
+    items.push({label:'粘贴',fn:()=>{
+      if(clipboard&&arm!=null){
+        sequences[arm].splice(pos,0,{...clipboard,pose:[...clipboard.pose]});
+        drawSeq();
+      }
+    }, disabled:!clipboard||arm==null});
+  }
+  buildCtxMenu(items, e.clientX, e.clientY);
+});
+
+function buildCtxMenu(items,x,y){
+  ctxMenu.innerHTML='';
+  ctxMenu.scrollTop=0;
+  items.forEach(it=>{
+    if(it.sep){
+      const d=document.createElement('div'); d.className='ctx-sep'; ctxMenu.appendChild(d);
+    } else {
+      const d=document.createElement('div');
+      d.className='ctx-item'+(it.disabled?' disabled':'');
+      d.textContent=it.label;
+      if(!it.disabled) d.onclick=()=>{ hideCtx(); it.fn(); drawSeq(); };
+      ctxMenu.appendChild(d);
+    }
+  });
+  // 先显示再计算实际高度，避免 display:none 时 offsetHeight=0
+  ctxMenu.style.left=x+'px';
+  ctxMenu.style.top=y+'px';
+  ctxMenu.style.display='block';
+  const mw=ctxMenu.offsetWidth, mh=ctxMenu.offsetHeight;
+  if(x+mw>window.innerWidth)  ctxMenu.style.left=(x-mw)+'px';
+  if(y+mh>window.innerHeight) ctxMenu.style.top=(y-mh)+'px';
+}
+
+function pasteBlock(arm,bi){
+  if(!clipboard) return;
+  sequences[arm].splice(bi,0,{...clipboard,pose:[...clipboard.pose]});
+}
+function copyToAll(arm,bi){
+  const blk=sequences[arm][bi];
+  for(let i=0;i<N_ARMS;i++){
+    if(i!==arm) sequences[i].push({...blk,pose:[...blk.pose]});
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 查看关节角（只读，同步 3D）
+// ═══════════════════════════════════════════════════════════════
+function showJointInfo(arm, bi) {
+  const blk = sequences[arm][bi];
+  // 同步预览到 3D 视图
+  livePoses[arm] = [...blk.pose];
+  send({type:'set_pose', arm, pose: blk.pose});
+  selArm = arm; refreshArmBtns(); syncSliders(blk.pose);
+
+  const rows = JNAMES.map((n,j)=>{
+    const rad = blk.pose[j];
+    const deg = (rad*180/Math.PI).toFixed(2);
+    return `<tr>
+      <td style="padding:5px 8px;color:#a0b8c8;font-weight:bold">${n}</td>
+      <td style="padding:5px 8px;font-family:monospace;color:#80aaff">${rad.toFixed(4)}</td>
+      <td style="padding:5px 8px;font-family:monospace;color:#a0d870">${deg}°</td>
+    </tr>`;
+  }).join('');
+
+  const overlay=document.createElement('div');
+  overlay.className='modal-overlay';
+  overlay.innerHTML=`<div class="modal" style="min-width:320px">
+    <h3 style="margin-bottom:10px">关节角信息
+      <span style="font-weight:normal;font-size:12px;color:#7090a0;margin-left:8px">${blk.name} · A${arm+1}</span>
+    </h3>
+    <table class="joint-table">
+      <thead><tr>
+        <th>关节</th><th>弧度</th><th>角度</th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>
+    <p style="font-size:11px;color:#506878;margin-bottom:12px">
+      已同步预览到 3D 视图（臂 A${arm+1}）
+    </p>
+    <div class="modal-btns">
+      <button class="ok" onclick="closeModal(this)">关闭</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{ if(e.target===overlay) closeModal(overlay); });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 编辑积木对话框
+// ═══════════════════════════════════════════════════════════════
+function editBlock(arm,bi){
+  const blk=sequences[arm][bi];
+  const overlay=document.createElement('div');
+  overlay.className='modal-overlay';
+  const modal=document.createElement('div');
+  modal.className='modal';
+  modal.innerHTML=`
+    <h3>编辑积木: ${blk.name}</h3>
+    <label>名称</label>
+    <input type="text" id="ed-name" value="${blk.name}">
+    <label>时长 (秒)</label>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <input type="range" id="ed-dur" min="0.1" max="10" step="0.1" value="${blk.duration}"
+             style="flex:1" oninput="document.getElementById('ed-dur-v').textContent=parseFloat(this.value).toFixed(1)">
+      <span id="ed-dur-v" style="min-width:35px;font-size:12px;color:#80aaff">${blk.duration.toFixed(1)}</span>
+    </div>
+    ${JNAMES.map((n,j)=>`
+    <div class="slider-row" style="margin-bottom:4px">
+      <label style="width:20px">${n}</label>
+      <input type="range" id="ed-sl-${j}" min="${JLIM[j][0]}" max="${JLIM[j][1]}" step="0.01"
+             value="${blk.pose[j]}" style="flex:1"
+             oninput="document.getElementById('ed-num-${j}').value=parseFloat(this.value).toFixed(3);updateEdPreview()">
+      <input type="number" id="ed-num-${j}" min="${JLIM[j][0]}" max="${JLIM[j][1]}" step="0.01"
+             value="${blk.pose[j].toFixed(3)}" style="width:65px;background:#2a3050;color:#80aaff;border:none;padding:2px 4px;border-radius:3px;font-size:11px;font-family:monospace"
+             onchange="let v=Math.max(${JLIM[j][0]},Math.min(${JLIM[j][1]},parseFloat(this.value)));
+                       this.value=v.toFixed(3);document.getElementById('ed-sl-${j}').value=v;updateEdPreview()">
+    </div>`).join('')}
+    <div class="modal-btns" style="margin-top:12px">
+      <button class="cancel" onclick="closeModal(this)">取消</button>
+      <button class="ok" onclick="confirmEdit(${arm},${bi},this)">确认</button>
+    </div>`;
+  overlay.appendChild(modal);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal(overlay);});
+
+  // 实时预览
+  window.updateEdPreview=()=>{
+    const pose=JNAMES.map((_,j)=>parseFloat(document.getElementById('ed-sl-'+j).value));
+    livePoses[arm]=pose;
+    send({type:'set_pose',arm,pose});
+  };
+}
+
+function closeModal(el){
+  while(el&&!el.classList.contains('modal-overlay')) el=el.parentElement;
+  if(el) el.remove();
+}
+function confirmEdit(arm,bi,btn){
+  const name=document.getElementById('ed-name').value.trim()||sequences[arm][bi].name;
+  const dur=parseFloat(document.getElementById('ed-dur').value);
+  const pose=JNAMES.map((_,j)=>parseFloat(document.getElementById('ed-sl-'+j).value));
+  sequences[arm][bi]={...sequences[arm][bi],name,duration:dur,pose};
+  closeModal(btn);
+  drawSeq();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 分组管理
+// ═══════════════════════════════════════════════════════════════
+function buildGroupList(){
+  const el=document.getElementById('group-list');
+  el.innerHTML='';
+  groups.forEach((g,gi)=>{
+    const row=document.createElement('div');
+    row.className='group-item';
+    row.style.background=g.color;
+    const arms=g.arms.slice(0,6).map(a=>'A'+(a+1)).join(',')+(g.arms.length>6?'…':'');
+    row.innerHTML=`<span>${g.name} (${arms})</span>
+      <button onclick="editGroup(${gi})">编辑</button>
+      <button onclick="delGroup(${gi})">删除</button>`;
+    el.appendChild(row);
+  });
+}
+
+function showNewGroup(){
+  const overlay=document.createElement('div');
+  overlay.className='modal-overlay';
+  const armChecks=Array.from({length:N_ARMS},(_,i)=>
+    `<label style="display:flex;align-items:center;gap:3px;color:${ROW_TINT[ARM_ROW[i]]};font-size:12px">
+       <input type="checkbox" id="ng-${i}" checked style="accent-color:#4a90d9"> A${i+1}
+     </label>`).join('');
+  overlay.innerHTML=`<div class="modal"><h3>新建分组</h3>
+    <label>分组名称</label>
+    <input type="text" id="ng-name" value="新分组" autofocus>
+    <label>包含机械臂</label>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">${armChecks}</div>
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeModal(this)">取消</button>
+      <button class="ok" onclick="confirmNewGroup(this)">创建</button>
+    </div></div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal(overlay);});
+}
+
+function confirmNewGroup(btn){
+  const name=document.getElementById('ng-name').value.trim()||'新分组';
+  const arms=Array.from({length:N_ARMS},(_,i)=>i)
+    .filter(i=>document.getElementById('ng-'+i)?.checked);
+  const color=GROUP_COLORS[groups.length%GROUP_COLORS.length];
+  groups.push({name,arms,color});
+  closeModal(btn);
+  buildGroupList();
+  drawSeq();
+}
+
+function editGroup(gi){
+  const g=groups[gi];
+  const overlay=document.createElement('div');
+  overlay.className='modal-overlay';
+  const armChecks=Array.from({length:N_ARMS},(_,i)=>
+    `<label style="display:flex;align-items:center;gap:3px;color:${ROW_TINT[ARM_ROW[i]]};font-size:12px">
+       <input type="checkbox" id="eg-${i}" ${g.arms.includes(i)?'checked':''} style="accent-color:#4a90d9"> A${i+1}
+     </label>`).join('');
+  overlay.innerHTML=`<div class="modal"><h3>编辑分组</h3>
+    <label>分组名称</label>
+    <input type="text" id="eg-name" value="${g.name}">
+    <label>包含机械臂</label>
+    <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:12px">${armChecks}</div>
+    <div class="modal-btns">
+      <button class="cancel" onclick="closeModal(this)">取消</button>
+      <button class="ok" onclick="confirmEditGroup(${gi},this)">确认</button>
+    </div></div>`;
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal(overlay);});
+}
+
+function confirmEditGroup(gi,btn){
+  groups[gi].name=document.getElementById('eg-name').value.trim()||groups[gi].name;
+  groups[gi].arms=Array.from({length:N_ARMS},(_,i)=>i)
+    .filter(i=>document.getElementById('eg-'+i)?.checked);
+  closeModal(btn);
+  buildGroupList();
+  drawSeq();
+}
+
+function delGroup(gi){
+  if(!confirm(`删除分组「${groups[gi].name}」？`)) return;
+  groups.splice(gi,1);
+  buildGroupList();
+  drawSeq();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 播放控制
+// ═══════════════════════════════════════════════════════════════
+function play(){
+  send({type:'play',
+        sequences:sequences.map(s=>s.map(b=>({...b,pose:[...b.pose]}))),
+        speed:parseFloat(document.getElementById('speed-sel').value)});
+}
+function stop(){send({type:'stop'});}
+function seek(){send({type:'seek'});}
+function setSpeed(v){send({type:'set_speed',speed:parseFloat(v)});}
+function clearAll(){
+  if(!confirm('清空所有轨道？')) return;
+  sequences=Array.from({length:N_ARMS},()=>[]);
+  drawSeq();
+  send({type:'seek'});
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 保存 / 载入
+// ═══════════════════════════════════════════════════════════════
+function saveFile(){
+  const name=prompt('保存名称（不含扩展名）：','untitled');
+  if(!name) return;
+  const data={version:3,sequences:sequences.map(s=>s.map(b=>({...b}))),groups};
+  // 下载到本地
+  const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=name+'.json';
+  a.click();
+  // 同时通知服务器保存
+  send({type:'save',name,data});
+}
+
+function loadFile(){
+  const input=document.createElement('input');
+  input.type='file'; input.accept='.json';
+  input.onchange=async e=>{
+    const file=e.target.files[0];
+    if(!file) return;
+    const text=await file.text();
+    try{
+      const data=JSON.parse(text);
+      applyLoadedData(data);
+    }catch(err){alert('载入失败: '+err);}
+  };
+  input.click();
+}
+
+function applyLoadedData(data){
+  const raw=data.sequences||data.arms||{};
+  if(Array.isArray(raw)){
+    sequences=raw.map(s=>s.map(b=>({...b,pose:[...b.pose]})));
+  } else {
+    sequences=Array.from({length:N_ARMS},(_,i)=>
+      (raw[i]||[]).map(b=>({...b,pose:[...b.pose]})));
+  }
+  if(data.groups) {
+    groups=data.groups;
+    buildGroupList();
+  }
+  drawSeq();
+  seek();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════════════════════════════
+buildArmGrid();
+buildBatchGrid();
+buildSliders();
+buildLib();
+buildGroupList();
+resizeSeqCanvas();
+
+// 双击 seq canvas 编辑积木
+seqCv.addEventListener('dblclick',e=>{
+  const {cx,cy}=canvasXY(e);
+  const hit=hitTest(cx,cy);
+  if(hit&&!hit.grp) editBlock(hit.arm,hit.bi);
+});
+</script>
+</body>
+</html>
