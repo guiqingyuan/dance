@@ -8,8 +8,7 @@
   浏览器打开 http://localhost:8765
 """
 
-import asyncio, base64, io, json, math, time, os, sys, threading, webbrowser
-import concurrent.futures
+import asyncio, base64, io, json, math, time, os, sys, threading, webbrowser, queue
 from pathlib import Path
 import numpy as np
 import mujoco
@@ -22,8 +21,33 @@ import uvicorn
 if hasattr(sys, '_MEIPASS'):
     os.environ['PATH'] = sys._MEIPASS + os.pathsep + os.environ.get('PATH', '')
 
-# 单线程 executor —— MuJoCo GL context 只能在创建它的线程里使用
-_SIM_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+# ─── Main-thread rendering queue ─────────────────────────────────────────────
+# All MuJoCo GL operations run on the main thread to satisfy GLFW/WGL/EGL
+# thread-affinity requirements on Windows. uvicorn runs in a daemon thread.
+_req_q: queue.Queue = queue.Queue()
+
+
+async def _call_main(fn, *args):
+    """Schedule fn(*args) on the main rendering thread; await the result."""
+    loop = asyncio.get_running_loop()
+    fut: asyncio.Future = loop.create_future()
+    _req_q.put((fn, args, fut, loop))
+    return await fut
+
+
+def _rendering_loop():
+    """Blocking loop that runs on the main thread and handles all GL calls."""
+    _ensure_renderer()          # initialise MuJoCo renderer on main thread
+    while True:
+        try:
+            fn, args, fut, loop = _req_q.get(timeout=0.05)
+        except queue.Empty:
+            continue
+        try:
+            result = fn(*args)
+            loop.call_soon_threadsafe(fut.set_result, result)
+        except Exception as exc:
+            loop.call_soon_threadsafe(fut.set_exception, exc)
 
 # ─── 路径（兼容 PyInstaller 打包）────────────────────────────────────────────
 def _res(*parts):
@@ -301,7 +325,7 @@ def _do_sim_step():
 
 
 def _render_jpeg():
-    """渲染并返回 base64 JPEG 字符串（同步，在 _SIM_EXECUTOR 线程中调用）"""
+    """Render current scene; returns base64 JPEG string."""
     _ensure_renderer()
     if sim.renderer is None:
         return _PLACEHOLDER or _make_placeholder()
@@ -315,7 +339,7 @@ def _render_jpeg():
 
 
 def _step_and_render():
-    """仿真步进 + 渲染，始终在同一个 _SIM_EXECUTOR 线程里运行"""
+    """Sim step + render, always called on the main thread via _req_q."""
     _do_sim_step()
     return _render_jpeg()
 
@@ -387,12 +411,11 @@ async def load_file(name: str):
 @app.websocket("/ws")
 async def ws_endpoint(websocket: WebSocket):
     await websocket.accept()
-    loop = asyncio.get_event_loop()
 
     async def _send():
         while True:
             try:
-                frame = await loop.run_in_executor(_SIM_EXECUTOR, _step_and_render)
+                frame = await _call_main(_step_and_render)
                 await websocket.send_json({
                     "type": "frame",
                     "data": frame,
@@ -408,8 +431,7 @@ async def ws_endpoint(websocket: WebSocket):
             async for raw in websocket.iter_text():
                 try:
                     msg = json.loads(raw)
-                    await loop.run_in_executor(
-                        _SIM_EXECUTOR, lambda m=msg: _handle_cmd(m))
+                    await _call_main(_handle_cmd, msg)
                 except Exception:
                     pass
         except WebSocketDisconnect:
@@ -427,8 +449,15 @@ if __name__ == "__main__":
     CHOREO_DIR.mkdir(parents=True, exist_ok=True)
 
     def _open_browser():
-        time.sleep(1.8)          # 等服务端就绪
+        time.sleep(1.8)
         webbrowser.open(f'http://localhost:{PORT}')
 
     threading.Thread(target=_open_browser, daemon=True).start()
-    uvicorn.run(app, host='127.0.0.1', port=PORT, log_level='warning')
+
+    # uvicorn runs in a daemon thread; main thread stays for GL rendering
+    threading.Thread(
+        target=lambda: uvicorn.run(app, host='127.0.0.1', port=PORT, log_level='warning'),
+        daemon=True,
+    ).start()
+
+    _rendering_loop()   # blocks main thread forever
