@@ -4,15 +4,19 @@
 
 import sys
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_dynamic_libs
 
 HERE = Path(SPECPATH)          # tools/
 ROOT = HERE.parent             # sport/
 MESH_SRC = ROOT / 'A1Z_Flange' / 'meshes'
 
+# Collect all MuJoCo DLLs (includes ANGLE libEGL/libGLESv2 on Windows)
+mujoco_bins = collect_dynamic_libs('mujoco')
+
 a = Analysis(
     [str(HERE / 'choreo_server.py')],
     pathex=[str(HERE)],
-    binaries=[],
+    binaries=mujoco_bins,
     datas=[
         # 前端页面
         (str(HERE / 'static'),       'static'),

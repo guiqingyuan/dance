@@ -18,6 +18,10 @@ from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse
 import uvicorn
 
+# PyInstaller bundle: add _MEIPASS to PATH so Windows can find bundled ANGLE DLLs
+if hasattr(sys, '_MEIPASS'):
+    os.environ['PATH'] = sys._MEIPASS + os.pathsep + os.environ.get('PATH', '')
+
 # 单线程 executor —— MuJoCo GL context 只能在创建它的线程里使用
 _SIM_EXECUTOR = concurrent.futures.ThreadPoolExecutor(max_workers=1)
 
