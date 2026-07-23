@@ -104,6 +104,10 @@ else:
 N_ARMS, N_DOF = 12, 6
 PI = math.pi
 
+# 每帧物理步数：8×4ms ≈ 33ms，让物理跑到接近实时，
+# 否则 qpos 滞后 ctrl 太多，动画看起来没反应或停止时瞬移
+_N_SUBSTEPS = 8
+
 POSE_EQUIL = [0., PI, -PI, 0., 0., 0.]
 SY = 1.55
 ZT, ZM, ZB = 3.20, 1.65, 0.10
@@ -333,7 +337,8 @@ def _do_sim_step():
 
     for i in range(N_ARMS):
         sim.data.ctrl[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
-    mujoco.mj_step(sim.model, sim.data)
+    for _ in range(_N_SUBSTEPS):
+        mujoco.mj_step(sim.model, sim.data)
 
 
 def _render_jpeg():
@@ -379,12 +384,11 @@ def _handle_cmd(msg: dict):
         sim.is_playing = False
         sim.is_homing  = False
         sim._home_st   = None
-        # 立即冻结物理状态，防止位置控制器振荡看起来像"还在动"
+        # 清零速度防振荡；不强制设 qpos，避免瞬移
+        # 8 个物理子步后 qpos 会快速收敛到 live_poses
         for i in range(N_ARMS):
-            sim.data.qpos[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
             sim.data.ctrl[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
         sim.data.qvel[:] = 0.0
-        mujoco.mj_forward(sim.model, sim.data)
     elif t == "seek":
         sim.is_playing = False
         sim.play_time  = 0.0
