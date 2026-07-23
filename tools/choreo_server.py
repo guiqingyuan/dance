@@ -366,6 +366,8 @@ def _handle_cmd(msg: dict):
         sim.cam.elevation = msg.get("el",   sim.cam.elevation)
         sim.cam.distance  = max(2.0, msg.get("dist", sim.cam.distance))
     elif t == "play":
+        sim.is_homing  = False
+        sim._home_st   = None
         sim.sequences  = msg.get("sequences", [[] for _ in range(N_ARMS)])
         sim.play_speed = float(msg.get("speed", 1.0))
         sim._play_st   = [{"bi": 0, "elapsed": 0.0,
@@ -375,6 +377,14 @@ def _handle_cmd(msg: dict):
         sim.play_time  = 0.0
     elif t == "stop":
         sim.is_playing = False
+        sim.is_homing  = False
+        sim._home_st   = None
+        # 立即冻结物理状态，防止位置控制器振荡看起来像"还在动"
+        for i in range(N_ARMS):
+            sim.data.qpos[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
+            sim.data.ctrl[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
+        sim.data.qvel[:] = 0.0
+        mujoco.mj_forward(sim.model, sim.data)
     elif t == "seek":
         sim.is_playing = False
         sim.play_time  = 0.0
