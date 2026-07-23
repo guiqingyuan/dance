@@ -368,6 +368,12 @@ def _handle_cmd(msg: dict):
             blks = sim.sequences[i]
             sim.live_poses[i] = (np.array(blks[0]["pose"])
                                  if blks else np.array(POSE_EQUIL))
+        # 同步重置物理状态，让 3D 视图立即跳到初始位置而不是缓慢驱动过去
+        for i in range(N_ARMS):
+            sim.data.qpos[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
+            sim.data.ctrl[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
+        sim.data.qvel[:] = 0.0
+        mujoco.mj_forward(sim.model, sim.data)
     elif t == "set_speed":
         sim.play_speed = float(msg.get("speed", 1.0))
     elif t == "update_sequences":
