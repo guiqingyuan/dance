@@ -234,6 +234,8 @@ class SimState:
         self.play_speed = 1.0
         self.play_time  = 0.0
         self._play_st   = None
+        self.is_homing  = False
+        self._home_st   = None
 
 
 sim = SimState()
@@ -317,6 +319,18 @@ def _do_sim_step():
             sim.play_time = (sum(b["duration"] for b in blks0[:st0["bi"]])
                              + st0["elapsed"])
 
+    elif sim.is_homing and sim._home_st:
+        all_done = True
+        for i, st in enumerate(sim._home_st):
+            st["elapsed"] += 0.033  # 固定实时步长，不受播放速度影响
+            tau = min(1.0, st["elapsed"] / st["duration"])
+            sim.live_poses[i] = _minjerk_step(st["q0"], st["q_target"], tau)
+            if tau < 1.0:
+                all_done = False
+        if all_done:
+            sim.is_homing = False
+            sim._home_st  = None
+
     for i in range(N_ARMS):
         sim.data.ctrl[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
     mujoco.mj_step(sim.model, sim.data)
@@ -364,16 +378,17 @@ def _handle_cmd(msg: dict):
     elif t == "seek":
         sim.is_playing = False
         sim.play_time  = 0.0
+        sim.is_homing  = True
+        sim._home_st   = []
         for i in range(N_ARMS):
             blks = sim.sequences[i]
-            sim.live_poses[i] = (np.array(blks[0]["pose"])
-                                 if blks else np.array(POSE_EQUIL))
-        # 同步重置物理状态，让 3D 视图立即跳到初始位置而不是缓慢驱动过去
-        for i in range(N_ARMS):
-            sim.data.qpos[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
-            sim.data.ctrl[i*N_DOF:(i+1)*N_DOF] = sim.live_poses[i]
-        sim.data.qvel[:] = 0.0
-        mujoco.mj_forward(sim.model, sim.data)
+            q_target = (np.array(blks[0]["pose"]) if blks else np.array(POSE_EQUIL))
+            sim._home_st.append({
+                "q0":       sim.live_poses[i].copy(),
+                "q_target": q_target,
+                "elapsed":  0.0,
+                "duration": 0.8,
+            })
     elif t == "set_speed":
         sim.play_speed = float(msg.get("speed", 1.0))
     elif t == "update_sequences":
