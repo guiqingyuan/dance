@@ -164,6 +164,7 @@ input{font-family:inherit}
     <option value="2.0">2.0x</option>
   </select>
   <div class="sep"></div>
+  <button class="btn" onclick="undoSeq()" title="撤回 (Ctrl+Z)">撤回</button>
   <button class="btn" onclick="clearAll()">清空</button>
   <button class="btn" onclick="loadFile()">载入</button>
   <button class="btn" onclick="saveFile()">保存</button>
@@ -247,10 +248,16 @@ const ROW_TINT = ["#c8944a","#5a7fbf","#4aab78"];
 const GROUP_COLORS = ["#7a3020","#3a5820","#1a4468","#482058","#0e5448","#6a3808"];
 const BLOCK_COLORS = ["#b84a22","#9a7808","#2e7a2e","#1a58a8",
                       "#603898","#9a2860","#0e6868","#506010"];
-const JLIM = [[-2.094,2.094],[-3.34,3.34],[-3.34,0.1],
-              [-1.309,1.309],[-1.484,1.484],[-2.007,2.007]];
+// 关节限位（弧度，内部存储/发送服务器用）
+const JLIM_RAD = [[-2.094,2.094],[-3.34,3.34],[-3.34,0.1],
+                  [-1.309,1.309],[-1.484,1.484],[-2.007,2.007]];
+// 关节限位（度，UI 显示用）
+const JLIM_DEG = JLIM_RAD.map(([lo,hi])=>[+(lo*180/PI).toFixed(1), +(hi*180/PI).toFixed(1)]);
 const JNAMES = ["J1","J2","J3","J4","J5","J6"];
-const POSE_EQUIL = [0, PI, -PI, 0, 0, 0];
+const POSE_EQUIL = [0, PI, -PI, 0, 0, 0]; // 弧度，内部值
+// UI 辅助：弧度 ↔ 角度
+const r2d = r => r * 180 / PI;
+const d2r = d => d * PI / 180;
 
 const BW=108, BH=36, BGAP=24, ARM_RH=52, GRP_RH=44, SL=44;
 
@@ -276,6 +283,20 @@ let selBlock    = null; // {arm,bi}
 let clipboard   = null; // block dict
 let isPlaying   = false;
 let lastDur     = 2.0;
+
+// 撤回栈（每次修改 sequences 前调 pushUndo()）
+let _undoStack  = [];
+function pushUndo() {
+  _undoStack.push(sequences.map(s=>s.map(b=>({...b,pose:[...b.pose]}))));
+  if(_undoStack.length > 50) _undoStack.shift();
+}
+function undoSeq() {
+  if(!_undoStack.length) return;
+  sequences = _undoStack.pop();
+  selBlock = null;
+  drawSeq();
+  send({type:'seek'});
+}
 
 // 拖拽状态
 let drag = null;  // {name,pose,color,dur,srcArm,srcBi} or null
@@ -384,6 +405,7 @@ function batchApply() {
   const pose = [...livePoses[selArm]];
   const dur  = parseFloat(document.getElementById('dur-sl').value)||2.0;
   const color= BLOCK_COLORS[sequences.reduce((a,s)=>a+s.length,0)%BLOCK_COLORS.length];
+  pushUndo();
   for(let i=0;i<N_ARMS;i++){
     const cb=document.getElementById('batch-'+i);
     if(cb && cb.checked)
@@ -476,31 +498,33 @@ function buildSliders() {
   const el=document.getElementById('slider-area');
   el.innerHTML='';
   for(let j=0;j<N_DOF;j++){
-    const [lo,hi]=JLIM[j];
+    const [lo,hi]=JLIM_DEG[j];
     const row=document.createElement('div');
     row.className='slider-row';
     const lbl=document.createElement('label');
     lbl.textContent=JNAMES[j];
     const sl=document.createElement('input');
-    sl.type='range'; sl.min=lo; sl.max=hi; sl.step=0.01;
-    sl.value=POSE_EQUIL[j]; sl.id='sl-'+j;
+    sl.type='range'; sl.min=lo; sl.max=hi; sl.step=0.1;
+    sl.value=r2d(POSE_EQUIL[j]); sl.id='sl-'+j;
     const num=document.createElement('input');
-    num.type='number'; num.min=lo; num.max=hi; num.step=0.01;
-    num.value=POSE_EQUIL[j].toFixed(3); num.id='num-'+j;
+    num.type='number'; num.min=lo; num.max=hi; num.step=0.1;
+    num.value=r2d(POSE_EQUIL[j]).toFixed(1); num.id='num-'+j;
+    const unit=document.createElement('span');
+    unit.textContent='°'; unit.style.cssText='font-size:11px;color:#608090;margin-left:2px';
     sl.oninput=()=>{
-      const v=parseFloat(sl.value);
-      num.value=v.toFixed(3);
-      livePoses[selArm][j]=v;
+      const deg=parseFloat(sl.value);
+      num.value=deg.toFixed(1);
+      livePoses[selArm][j]=d2r(deg);
       send({type:'set_pose',arm:selArm,pose:livePoses[selArm]});
     };
     num.onchange=()=>{
-      let v=parseFloat(num.value);
-      v=Math.max(lo,Math.min(hi,v));
-      num.value=v.toFixed(3); sl.value=v;
-      livePoses[selArm][j]=v;
+      let deg=parseFloat(num.value);
+      deg=Math.max(lo,Math.min(hi,deg));
+      num.value=deg.toFixed(1); sl.value=deg;
+      livePoses[selArm][j]=d2r(deg);
       send({type:'set_pose',arm:selArm,pose:livePoses[selArm]});
     };
-    row.append(lbl,sl,num);
+    row.append(lbl,sl,num,unit);
     el.appendChild(row);
   }
 }
@@ -509,8 +533,8 @@ function syncSliders(pose) {
   for(let j=0;j<N_DOF;j++){
     const sl=document.getElementById('sl-'+j);
     const num=document.getElementById('num-'+j);
-    if(sl) sl.value=pose[j];
-    if(num) num.value=pose[j].toFixed(3);
+    if(sl) sl.value=r2d(pose[j]);
+    if(num) num.value=r2d(pose[j]).toFixed(1);
   }
 }
 
@@ -519,6 +543,7 @@ function addToArm() {
   const pose=[...livePoses[selArm]];
   const dur=parseFloat(document.getElementById('dur-sl').value)||2.0;
   const color=BLOCK_COLORS[sequences[selArm].length%BLOCK_COLORS.length];
+  pushUndo();
   sequences[selArm].push({name,pose,duration:dur,color});
   drawSeq();
 }
@@ -789,6 +814,7 @@ function doDrop(e) {
   const hint=calcHint(e);
   if(!hint) return;
   const blk={name:drag.name,pose:[...drag.pose],duration:drag.dur,color:drag.color};
+  pushUndo();
   if(hint.grp){
     const g=groups[hint.gi];
     // 如果是从 seq 内部拖动，先删除
@@ -840,18 +866,19 @@ seqCv.addEventListener('contextmenu',e=>{
     items.push({label:'查看关节角', fn:()=>showJointInfo(arm,bi)});
     items.push({sep:true});
     items.push({label:'复制',       fn:()=>{clipboard={...sequences[arm][bi],pose:[...sequences[arm][bi].pose]}}});
-    items.push({label:'粘贴到前面', fn:()=>pasteBlock(arm,bi),   disabled:!clipboard});
-    items.push({label:'粘贴到后面', fn:()=>pasteBlock(arm,bi+1), disabled:!clipboard});
+    items.push({label:'粘贴到前面', fn:()=>{pushUndo();pasteBlock(arm,bi)},   disabled:!clipboard});
+    items.push({label:'粘贴到后面', fn:()=>{pushUndo();pasteBlock(arm,bi+1)}, disabled:!clipboard});
     items.push({sep:true});
-    items.push({label:'复制到全部臂',fn:()=>copyToAll(arm,bi)});
+    items.push({label:'复制到全部臂',fn:()=>{pushUndo();copyToAll(arm,bi)}});
     items.push({sep:true});
-    items.push({label:'删除',       fn:()=>{sequences[arm].splice(bi,1);selBlock=null;drawSeq();}});
+    items.push({label:'删除',       fn:()=>{pushUndo();sequences[arm].splice(bi,1);selBlock=null;drawSeq();}});
   } else {
     const row=rowAt(cy);
     const arm=row.grp?null:row.arm;
     const pos=arm!=null?insertPos(arm,cx):0;
     items.push({label:'粘贴',fn:()=>{
       if(clipboard&&arm!=null){
+        pushUndo();
         sequences[arm].splice(pos,0,{...clipboard,pose:[...clipboard.pose]});
         drawSeq();
       }
@@ -879,8 +906,8 @@ function buildCtxMenu(items,x,y){
   ctxMenu.style.top=y+'px';
   ctxMenu.style.display='block';
   const mw=ctxMenu.offsetWidth, mh=ctxMenu.offsetHeight;
-  if(x+mw>window.innerWidth)  ctxMenu.style.left=(x-mw)+'px';
-  if(y+mh>window.innerHeight) ctxMenu.style.top=(y-mh)+'px';
+  ctxMenu.style.left=Math.min(x, window.innerWidth  - mw - 4)+'px';
+  ctxMenu.style.top =Math.min(y, window.innerHeight - mh - 4)+'px';
 }
 
 function pasteBlock(arm,bi){
@@ -959,13 +986,14 @@ function editBlock(arm,bi){
     ${JNAMES.map((n,j)=>`
     <div class="slider-row" style="margin-bottom:4px">
       <label style="width:20px">${n}</label>
-      <input type="range" id="ed-sl-${j}" min="${JLIM[j][0]}" max="${JLIM[j][1]}" step="0.01"
-             value="${blk.pose[j]}" style="flex:1"
-             oninput="document.getElementById('ed-num-${j}').value=parseFloat(this.value).toFixed(3);updateEdPreview()">
-      <input type="number" id="ed-num-${j}" min="${JLIM[j][0]}" max="${JLIM[j][1]}" step="0.01"
-             value="${blk.pose[j].toFixed(3)}" style="width:65px;background:#2a3050;color:#80aaff;border:none;padding:2px 4px;border-radius:3px;font-size:11px;font-family:monospace"
-             onchange="let v=Math.max(${JLIM[j][0]},Math.min(${JLIM[j][1]},parseFloat(this.value)));
-                       this.value=v.toFixed(3);document.getElementById('ed-sl-${j}').value=v;updateEdPreview()">
+      <input type="range" id="ed-sl-${j}" min="${JLIM_DEG[j][0]}" max="${JLIM_DEG[j][1]}" step="0.1"
+             value="${r2d(blk.pose[j]).toFixed(1)}" style="flex:1"
+             oninput="document.getElementById('ed-num-${j}').value=parseFloat(this.value).toFixed(1);updateEdPreview()">
+      <input type="number" id="ed-num-${j}" min="${JLIM_DEG[j][0]}" max="${JLIM_DEG[j][1]}" step="0.1"
+             value="${r2d(blk.pose[j]).toFixed(1)}" style="width:65px;background:#2a3050;color:#80aaff;border:none;padding:2px 4px;border-radius:3px;font-size:11px;font-family:monospace"
+             onchange="let v=Math.max(${JLIM_DEG[j][0]},Math.min(${JLIM_DEG[j][1]},parseFloat(this.value)));
+                       this.value=v.toFixed(1);document.getElementById('ed-sl-${j}').value=v;updateEdPreview()">
+      <span style="font-size:11px;color:#608090;margin-left:2px">°</span>
     </div>`).join('')}
     <div class="modal-btns" style="margin-top:12px">
       <button class="cancel" onclick="closeModal(this)">取消</button>
@@ -975,9 +1003,9 @@ function editBlock(arm,bi){
   document.body.appendChild(overlay);
   overlay.addEventListener('click',e=>{if(e.target===overlay)closeModal(overlay);});
 
-  // 实时预览
+  // 实时预览（度→弧度再发送）
   window.updateEdPreview=()=>{
-    const pose=JNAMES.map((_,j)=>parseFloat(document.getElementById('ed-sl-'+j).value));
+    const pose=JNAMES.map((_,j)=>d2r(parseFloat(document.getElementById('ed-sl-'+j).value)));
     livePoses[arm]=pose;
     send({type:'set_pose',arm,pose});
   };
@@ -990,7 +1018,8 @@ function closeModal(el){
 function confirmEdit(arm,bi,btn){
   const name=document.getElementById('ed-name').value.trim()||sequences[arm][bi].name;
   const dur=parseFloat(document.getElementById('ed-dur').value);
-  const pose=JNAMES.map((_,j)=>parseFloat(document.getElementById('ed-sl-'+j).value));
+  const pose=JNAMES.map((_,j)=>d2r(parseFloat(document.getElementById('ed-sl-'+j).value)));
+  pushUndo();
   sequences[arm][bi]={...sequences[arm][bi],name,duration:dur,pose};
   closeModal(btn);
   drawSeq();
@@ -1095,6 +1124,7 @@ function seek(){send({type:'seek'});}
 function setSpeed(v){send({type:'set_speed',speed:parseFloat(v)});}
 function clearAll(){
   if(!confirm('清空所有轨道？')) return;
+  pushUndo();
   sequences=Array.from({length:N_ARMS},()=>[]);
   drawSeq();
   send({type:'seek'});
@@ -1163,6 +1193,14 @@ seqCv.addEventListener('dblclick',e=>{
   const {cx,cy}=canvasXY(e);
   const hit=hitTest(cx,cy);
   if(hit&&!hit.grp) editBlock(hit.arm,hit.bi);
+});
+
+// Ctrl+Z 撤回
+document.addEventListener('keydown',e=>{
+  if((e.ctrlKey||e.metaKey) && e.key==='z' && !e.shiftKey){
+    e.preventDefault();
+    undoSeq();
+  }
 });
 </script>
 </body>
