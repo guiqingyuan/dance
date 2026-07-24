@@ -52,6 +52,10 @@ a = Analysis(
         'mujoco.glfw',
         'mujoco.rendering.classic.gl_context',
         'mujoco.rendering.classic.renderer',
+        # OpenGL platform (EGL on Linux)
+        'OpenGL', 'OpenGL.platform', 'OpenGL.platform.egl',
+        'OpenGL.platform.glx', 'OpenGL.platform.osmesa',
+        'OpenGL.GL', 'OpenGL.EGL',
         # 其他
         'PIL._tkinter_finder',
         'numpy',
@@ -60,7 +64,7 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['tkinter', 'matplotlib', 'scipy'],
+    excludes=['tkinter', 'matplotlib', 'scipy', 'PyQt5', 'PySide6'],
     noarchive=False,
 )
 

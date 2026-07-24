@@ -108,13 +108,13 @@ PI = math.pi
 # 否则 qpos 滞后 ctrl 太多，动画看起来没反应或停止时瞬移
 _N_SUBSTEPS = 8
 
-POSE_EQUIL = [0., PI, -PI, 0., 0., 0.]
+POSE_EQUIL = [0., 0., -2.897, 0., 0., 0.]   # 倒装自然倒垂姿态（J3≈-166°）
 SY = 1.55
 ZT, ZM, ZB = 3.20, 1.65, 0.10
 ARM_POS = [
-    (-2*SY,ZT),(-SY,ZT),(0,ZT),(SY,ZT),(2*SY,ZT),
-    (-1.5*SY,ZM),(-0.5*SY,ZM),(0.5*SY,ZM),(1.5*SY,ZM),
-    (-SY,ZB),(0,ZB),(SY,ZB),
+    (2*SY,ZT),(SY,ZT),(0,ZT),(-SY,ZT),(-2*SY,ZT),
+    (1.5*SY,ZM),(0.5*SY,ZM),(-0.5*SY,ZM),(-1.5*SY,ZM),
+    (SY,ZB),(0,ZB),(-SY,ZB),
 ]
 ARM_ROW = [0]*5 + [1]*4 + [2]*3
 
@@ -127,7 +127,7 @@ def _arm_xml(i, y, z):
     n, r = i+1, ARM_ROW[i]
     b, l, e = _BC[r], _LC[r], _EC[r]
     return (
-        f'    <body name="base_{n}" pos="0 {y:.4f} {z:.4f}" euler="0 1.5708 0">\n'
+        f'    <body name="base_{n}" pos="0 {y:.4f} {z:.4f}" euler="0 -1.5708 0">\n'
         f'      <geom type="mesh" mesh="base_link" rgba="{b}"/>\n'
         f'      <body name="link1_{n}" pos="0 0 0.075">\n'
         f'        <joint name="j1_{n}" type="hinge" axis="0 0 1" range="-2.0944 2.0944"/>\n'
@@ -136,7 +136,7 @@ def _arm_xml(i, y, z):
         f'          <joint name="j2_{n}" type="hinge" axis="0 1 0" range="0 3.1416"/>\n'
         f'          <geom type="mesh" mesh="arm_link2" rgba="{l}"/>\n'
         f'          <body name="link3_{n}" pos="-0.264 0 0">\n'
-        f'            <joint name="j3_{n}" type="hinge" axis="0 1 0" range="-3.1416 0"/>\n'
+        f'            <joint name="j3_{n}" type="hinge" axis="0 1 0" range="-3.1416 -2.7053"/>\n'
         f'            <geom type="mesh" mesh="arm_link3" rgba="{l}"/>\n'
         f'            <body name="link4_{n}" pos="0.245 0 0.06">\n'
         f'              <joint name="j4_{n}" type="hinge" axis="0 1 0" range="-1.4835 1.4835"/>\n'
@@ -157,7 +157,7 @@ def _act_xml(i):
     return "\n".join([
         f'    <position name="a1_{n}" joint="j1_{n}" kp="60" kv="4"  ctrlrange="-2.0944 2.0944"/>',
         f'    <position name="a2_{n}" joint="j2_{n}" kp="90" kv="5"  ctrlrange="0      3.1416"/>',
-        f'    <position name="a3_{n}" joint="j3_{n}" kp="70" kv="4"  ctrlrange="-3.1416 0"/>',
+        f'    <position name="a3_{n}" joint="j3_{n}" kp="70" kv="4"  ctrlrange="-3.1416 -2.7053"/>',
         f'    <position name="a4_{n}" joint="j4_{n}" kp="35" kv="2"  ctrlrange="-1.4835 1.4835"/>',
         f'    <position name="a5_{n}" joint="j5_{n}" kp="18" kv="1"  ctrlrange="-1.4835 1.4835"/>',
         f'    <position name="a6_{n}" joint="j6_{n}" kp="18" kv="1"  ctrlrange="-2.0071 2.0071"/>',
@@ -167,7 +167,7 @@ def _build_mjcf():
     wy = 2*SY+0.22; wz_c = (ZT+ZB)/2; wz_h = (ZT-ZB)/2+0.30
     plates = "\n".join(
         f'    <geom name="plate_{i+1}" type="box" size="0.006 0.063 0.063"'
-        f' pos="-0.082 {y:.4f} {z:.4f}" rgba="0.26 0.26 0.30 1"/>'
+        f' pos="0.032 {y:.4f} {z:.4f}" rgba="0.26 0.26 0.30 1"/>'
         for i,(y,z) in enumerate(ARM_POS))
     arms = "\n".join(_arm_xml(i,y,z) for i,(y,z) in enumerate(ARM_POS))
     acts = "\n".join(_act_xml(i) for i in range(N_ARMS))
@@ -199,12 +199,12 @@ def _build_mjcf():
     <material name="wall" texture="wt"/>
   </asset>
   <worldbody>
-    <light name="top"  pos="3 0 6"   dir="-0.5 0 -1" diffuse="0.8 0.8 0.8" specular="0.2 0.2 0.2" castshadow="false"/>
-    <light name="left" pos="2 -4 4"  dir="-0.3 0.8 -0.8" diffuse="0.4 0.5 0.6" specular="0.1 0.1 0.1" castshadow="false"/>
-    <light name="fill" pos="2  4 4"  dir="-0.3 -0.8 -0.8" diffuse="0.4 0.4 0.5" specular="0.0 0.0 0.0" castshadow="false"/>
+    <light name="top"  pos="-3 0 6"  dir="0.5 0 -1"   diffuse="0.8 0.8 0.8" specular="0.2 0.2 0.2" castshadow="false"/>
+    <light name="left" pos="-2 -4 4" dir="0.3 0.8 -0.8"  diffuse="0.4 0.5 0.6" specular="0.1 0.1 0.1" castshadow="false"/>
+    <light name="fill" pos="-2  4 4" dir="0.3 -0.8 -0.8" diffuse="0.4 0.4 0.5" specular="0.0 0.0 0.0" castshadow="false"/>
     <geom name="floor" type="plane" size="8 8 0.01" pos="0 0 -0.85" material="floor"/>
-    <geom name="wall" type="box" size="0.025 {wy:.4f} {wz_h:.4f}"
-          pos="-0.125 0 {wz_c:.4f}" material="wall"/>
+    <geom name="wall" type="box" size="0.010 {wy:.4f} {wz_h:.4f}"
+          pos="0.125 0 {wz_c:.4f}" material="wall"/>
 {plates}
 {arms}
   </worldbody>
@@ -223,9 +223,9 @@ class SimState:
         self.renderer  = None
         self.cam       = mujoco.MjvCamera()
         self.scene_opt = mujoco.MjvOption()
-        self.cam.azimuth, self.cam.elevation = 180.0, -15.0
+        self.cam.azimuth, self.cam.elevation = 0.0, -15.0
         self.cam.distance  = 9.0
-        self.cam.lookat[:] = [0.5, 0.0, 1.65]
+        self.cam.lookat[:] = [0.0, 0.0, 1.65]
 
         init = np.tile(POSE_EQUIL, N_ARMS)
         self.data.qpos[:] = init
