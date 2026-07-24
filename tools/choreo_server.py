@@ -130,22 +130,22 @@ def _arm_xml(i, y, z):
         f'    <body name="base_{n}" pos="0 {y:.4f} {z:.4f}" euler="0 1.5708 0">\n'
         f'      <geom type="mesh" mesh="base_link" rgba="{b}"/>\n'
         f'      <body name="link1_{n}" pos="0 0 0.075">\n'
-        f'        <joint name="j1_{n}" type="hinge" axis="0 0 1" range="-2.094 2.094"/>\n'
+        f'        <joint name="j1_{n}" type="hinge" axis="0 0 1" range="-2.0944 2.0944"/>\n'
         f'        <geom type="mesh" mesh="arm_link1" rgba="{l}"/>\n'
         f'        <body name="link2_{n}" pos="0.02 0 0.043">\n'
-        f'          <joint name="j2_{n}" type="hinge" axis="0 1 0" range="-3.34 3.34"/>\n'
+        f'          <joint name="j2_{n}" type="hinge" axis="0 1 0" range="0 3.1416"/>\n'
         f'          <geom type="mesh" mesh="arm_link2" rgba="{l}"/>\n'
         f'          <body name="link3_{n}" pos="-0.264 0 0">\n'
-        f'            <joint name="j3_{n}" type="hinge" axis="0 1 0" range="-3.34 0.1"/>\n'
+        f'            <joint name="j3_{n}" type="hinge" axis="0 1 0" range="-3.1416 0"/>\n'
         f'            <geom type="mesh" mesh="arm_link3" rgba="{l}"/>\n'
         f'            <body name="link4_{n}" pos="0.245 0 0.06">\n'
-        f'              <joint name="j4_{n}" type="hinge" axis="0 1 0" range="-1.309 1.309"/>\n'
+        f'              <joint name="j4_{n}" type="hinge" axis="0 1 0" range="-1.4835 1.4835"/>\n'
         f'              <geom type="mesh" mesh="arm_link4" rgba="{l}"/>\n'
         f'              <body name="link5_{n}" pos="0.074 0 0.042">\n'
-        f'                <joint name="j5_{n}" type="hinge" axis="0 0 1" range="-1.484 1.484"/>\n'
+        f'                <joint name="j5_{n}" type="hinge" axis="0 0 1" range="-1.4835 1.4835"/>\n'
         f'                <geom type="mesh" mesh="arm_link5" rgba="{l}"/>\n'
         f'                <body name="link6_{n}" pos="0.0235 0 -0.042">\n'
-        f'                  <joint name="j6_{n}" type="hinge" axis="1 0 0" range="-2.007 2.007"/>\n'
+        f'                  <joint name="j6_{n}" type="hinge" axis="1 0 0" range="-2.0071 2.0071"/>\n'
         f'                  <geom type="mesh" mesh="arm_link6" rgba="{l}"/>\n'
         f'                  <geom type="sphere" size="0.014" pos="0.12 0 0" rgba="{e}"/>\n'
         f'                  <site name="ee_{n}" pos="0.12 0 0" size="0.003"/>\n'
@@ -155,12 +155,12 @@ def _arm_xml(i, y, z):
 def _act_xml(i):
     n = i+1
     return "\n".join([
-        f'    <position name="a1_{n}" joint="j1_{n}" kp="60" kv="4"  ctrlrange="-2.094 2.094"/>',
-        f'    <position name="a2_{n}" joint="j2_{n}" kp="90" kv="5"  ctrlrange="-3.34  3.34"/>',
-        f'    <position name="a3_{n}" joint="j3_{n}" kp="70" kv="4"  ctrlrange="-3.34  0.1"/>',
-        f'    <position name="a4_{n}" joint="j4_{n}" kp="35" kv="2"  ctrlrange="-1.309 1.309"/>',
-        f'    <position name="a5_{n}" joint="j5_{n}" kp="18" kv="1"  ctrlrange="-1.484 1.484"/>',
-        f'    <position name="a6_{n}" joint="j6_{n}" kp="18" kv="1"  ctrlrange="-2.007 2.007"/>',
+        f'    <position name="a1_{n}" joint="j1_{n}" kp="60" kv="4"  ctrlrange="-2.0944 2.0944"/>',
+        f'    <position name="a2_{n}" joint="j2_{n}" kp="90" kv="5"  ctrlrange="0      3.1416"/>',
+        f'    <position name="a3_{n}" joint="j3_{n}" kp="70" kv="4"  ctrlrange="-3.1416 0"/>',
+        f'    <position name="a4_{n}" joint="j4_{n}" kp="35" kv="2"  ctrlrange="-1.4835 1.4835"/>',
+        f'    <position name="a5_{n}" joint="j5_{n}" kp="18" kv="1"  ctrlrange="-1.4835 1.4835"/>',
+        f'    <position name="a6_{n}" joint="j6_{n}" kp="18" kv="1"  ctrlrange="-2.0071 2.0071"/>',
     ])
 
 def _build_mjcf():
