@@ -136,7 +136,7 @@ def _arm_xml(i, y, z):
         f'          <joint name="j2_{n}" type="hinge" axis="0 1 0" range="0 3.1416"/>\n'
         f'          <geom type="mesh" mesh="arm_link2" rgba="{l}"/>\n'
         f'          <body name="link3_{n}" pos="-0.264 0 0">\n'
-        f'            <joint name="j3_{n}" type="hinge" axis="0 1 0" range="-3.1416 -2.7053"/>\n'
+        f'            <joint name="j3_{n}" type="hinge" axis="0 1 0" range="-3.1416 0"/>\n'
         f'            <geom type="mesh" mesh="arm_link3" rgba="{l}"/>\n'
         f'            <body name="link4_{n}" pos="0.245 0 0.06">\n'
         f'              <joint name="j4_{n}" type="hinge" axis="0 1 0" range="-1.4835 1.4835"/>\n'
@@ -157,7 +157,7 @@ def _act_xml(i):
     return "\n".join([
         f'    <position name="a1_{n}" joint="j1_{n}" kp="60" kv="4"  ctrlrange="-2.0944 2.0944"/>',
         f'    <position name="a2_{n}" joint="j2_{n}" kp="90" kv="5"  ctrlrange="0      3.1416"/>',
-        f'    <position name="a3_{n}" joint="j3_{n}" kp="70" kv="4"  ctrlrange="-3.1416 -2.7053"/>',
+        f'    <position name="a3_{n}" joint="j3_{n}" kp="70" kv="4"  ctrlrange="-3.1416 0"/>',
         f'    <position name="a4_{n}" joint="j4_{n}" kp="35" kv="2"  ctrlrange="-1.4835 1.4835"/>',
         f'    <position name="a5_{n}" joint="j5_{n}" kp="18" kv="1"  ctrlrange="-1.4835 1.4835"/>',
         f'    <position name="a6_{n}" joint="j6_{n}" kp="18" kv="1"  ctrlrange="-2.0071 2.0071"/>',
@@ -375,8 +375,12 @@ def _handle_cmd(msg: dict):
         sim._home_st   = None
         sim.sequences  = msg.get("sequences", [[] for _ in range(N_ARMS)])
         sim.play_speed = float(msg.get("speed", 1.0))
+        # 每次播放从 POSE_EQUIL 出发，确保第一段完整执行
+        sim.live_poses = np.tile(POSE_EQUIL, (N_ARMS, 1))
+        sim.data.qpos[:] = np.tile(POSE_EQUIL, N_ARMS)
+        sim.data.qvel[:] = 0.0
         sim._play_st   = [{"bi": 0, "elapsed": 0.0,
-                           "q0": sim.live_poses[i].tolist()}
+                           "q0": list(POSE_EQUIL)}
                           for i in range(N_ARMS)]
         sim.is_playing = True
         sim.play_time  = 0.0
